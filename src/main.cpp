@@ -46,6 +46,14 @@ void OpenListener(int sock_fd)
 		// Send our message
 		FCGX_FPrintF(request.out, "<h2>%s thread %d</h2>", qstr, ThreadHandler::GetThreadID());
 
+		FCGX_FPrintF(request.out, "<p>%s<br/>", FCGX_GetParam("REMOTE_ADDR", request.envp));
+		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REQUEST_URI", request.envp));
+		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("SERVER_PROTOCOL", request.envp));
+		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REQUEST_METHOD", request.envp));
+		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REMOTE_PORT", request.envp));
+		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("SCRIPT_NAME", request.envp));
+		FCGX_FPrintF(request.out, "</p>");
+
 		FCGX_Finish_r(&request);
 	}
 
