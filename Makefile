@@ -1,9 +1,9 @@
 CXX=clang++
 CC=clang
 BUILDDIR=build
-COMMONFLAGS=-Wall -Wextra -g -Iinclude/
+COMMONFLAGS=-Wall -Wextra -g -Iinclude/ `mysql_config --include`
 CXXFLAGS=-std=c++11 $(COMMONFLAGS)
-LINKFLAGS=-lpthread -lfcgi
+LINKFLAGS=-lpthread -lfcgi `mysql_config --libs`
 
 all:
 	mkdir -p $(BUILDDIR)

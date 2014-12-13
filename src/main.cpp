@@ -10,6 +10,10 @@
 #include <cerrno>
 #include <atomic>
 
+// Mysql
+#include <mysql/my_global.h>
+#include <mysql/mysql.h>
+
 // Our thread engine.
 #include "ThreadEngine.h"
 
@@ -36,7 +40,7 @@ void OpenListener(int sock_fd)
 		// Set the status to 200 OK
 		r.SetStatus(200);
 
-		// Form the HTML header enough, nginx will fill in the rest.
+		// Form the HTTP header enough, nginx will fill in the rest.
 		r.Write("Content-Type: text/html\r\n\r\n");
 
 		// Send our message
@@ -70,6 +74,23 @@ int main(int argc, char **argv)
 	int sock_fd = FCGX_OpenSocket(":3000", 1024);
 	printf("Opened socket fd: %d\n", sock_fd);
 
+	// Initialize MySQL
+	printf("MySQL client version: %s\n", mysql_get_client_info());
+
+	MYSQL *con = mysql_init(NULL);
+	if (!con)
+	{
+		fprintf(stderr, "%s\n", mysql_error(con));
+		return EXIT_FAILURE;
+	}
+
+	if (!mysql_real_connect(con, "localhost", "root", "root_pswd", NULL, 0, NULL, 0))
+	{
+		fprintf(stderr, "%s\n", mysql_error(con));
+		mysql_close(con);
+		return EXIT_FAILURE;
+	}
+
 	for (int i = 0; i < 10; ++i)
 		th.AddQueue(OpenListener, sock_fd);
 
@@ -84,5 +105,7 @@ int main(int argc, char **argv)
 	printf("Shutting down.\n");
 	th.Shutdown();
 
-	return EXIT_FAILURE;
+	mysql_close(con);
+
+	return EXIT_SUCCESS;
 }
