@@ -10,14 +10,10 @@
 #include <cerrno>
 #include <atomic>
 
-// libfcgi-dev includes
-#define NO_FCGI_DEFINES 1
-//#include <fcgio.h>
-#include <fcgi_config.h>
-#include <fcgi_stdio.h>
-
 // Our thread engine.
 #include "ThreadEngine.h"
+
+#include "Request.h"
 
 std::atomic_bool quit;
 
@@ -35,24 +31,24 @@ void OpenListener(int sock_fd)
 	while(FCGX_Accept_r(&request) == 0)
 	{
 		printf("Thread %d handling request\n", ThreadHandler::GetThreadID());
-		const char *qstr = FCGX_GetParam("QUERY_STRING", request.envp);
+		Request r(&request);
 
-		// 200 OK
-		FCGX_SetExitStatus(200, request.out);
+		// Set the status to 200 OK
+		r.SetStatus(200);
 
 		// Form the HTML header enough, nginx will fill in the rest.
-		FCGX_FPrintF(request.out, "Content-Type: text/html\r\n\r\n");
+		r.Write("Content-Type: text/html\r\n\r\n");
 
 		// Send our message
-		FCGX_FPrintF(request.out, "<h2>%s thread %d</h2>", qstr, ThreadHandler::GetThreadID());
+		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING").c_str(), ThreadHandler::GetThreadID());
 
-		FCGX_FPrintF(request.out, "<p>%s<br/>", FCGX_GetParam("REMOTE_ADDR", request.envp));
-		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REQUEST_URI", request.envp));
-		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("SERVER_PROTOCOL", request.envp));
-		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REQUEST_METHOD", request.envp));
-		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("REMOTE_PORT", request.envp));
-		FCGX_FPrintF(request.out, "%s<br/>", FCGX_GetParam("SCRIPT_NAME", request.envp));
-		FCGX_FPrintF(request.out, "</p>");
+		r.Write("<p>%s<br/>", r.GetParam("REMOTE_ADDR").c_str());
+		r.Write("%s<br/>", r.GetParam("REQUEST_URI").c_str());
+		r.Write("%s<br/>", r.GetParam("SERVER_PROTOCOL").c_str());
+		r.Write("%s<br/>", r.GetParam("REQUEST_METHOD").c_str());
+		r.Write("%s<br/>", r.GetParam("REMOTE_PORT").c_str());
+		r.Write("%s<br/>", r.GetParam("SCRIPT_NAME").c_str());
+		r.Write("</p>");
 
 		FCGX_Finish_r(&request);
 	}

@@ -1,3 +1,4 @@
+#pragma once
 #include <functional>
 #include <utility>
 #include <map>
@@ -24,7 +25,7 @@ class EventDispatcher
 public:
 	EventDispatcher() {}
 	~EventDispatcher() {}
-	
+
 	// Handle adding events to functions
 	template<class _Function>
 	void AddReturnEvent(const std::string &name, _Function&& __f)
@@ -33,7 +34,7 @@ public:
 		//std::bind(std::forward<_Function>(__f), std::forward<_Args>(__args)...);
 		retevents[name] = func;
 	}
-	
+
 	template<class _Function>
 	void AddVoidEvent(const std::string &name, _Function&& __f)
 	{
@@ -41,7 +42,7 @@ public:
 		//std::bind(std::forward<_Function>(__f), std::forward<_Args>(__args)...);
 		voidevents[name] = func;
 	}
-	
+
 	template<class... _Args>
 	void CallVoidEvent(const std::string &name, _Args&&... __args)
 	{
@@ -54,8 +55,8 @@ public:
 			}
 		}
 	}
-	
-	
+
+
 	template<class... _Args>
 	EventReturn CallReturnEvent(const std::string &name, _Args&&... __args)
 	{
@@ -69,7 +70,7 @@ public:
 					return ret;
 			}
 		}
-		
+
 		return EVENT_CONTINUE;
 	}
 };
