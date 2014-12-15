@@ -41,6 +41,11 @@ void OpenListener(int sock_fd)
 		r.Write("Content-Type: text/html\r\n\r\n");
 
 		// Send our message
+
+		r.Write("<html><head>");
+		r.Write("<title>Example Test thingy</title>");
+		r.Write("</head>");
+
 		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING"), ThreadHandler::GetThreadID());
 
 		r.Write("<p>%s<br/>", r.GetParam("REMOTE_ADDR"));
@@ -54,7 +59,7 @@ void OpenListener(int sock_fd)
 
 		printf("Running MySQL Query...\n");
 		// Test Query
-		MySQL_Result mr = ms->Query("SELECT * from testtbl");
+		MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("testtbl"));
 
 		printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
 
@@ -64,6 +69,8 @@ void OpenListener(int sock_fd)
 				r.Write("%s ", it.second[i] ? it.second[i] : "(NULL)");
 			r.Write("<br/>");
 		}
+
+		r.Write("</html>");
 
 		FCGX_Finish_r(&request);
 	}
@@ -98,7 +105,10 @@ int main(int argc, char **argv)
 
 	printf("Idling main thread.\n");
 	while(!quit)
-		sleep(1);
+	{
+		sleep(5);
+		ms->CheckConnection();
+	}
 
 	printf("Shutting down.\n");
 	th.Shutdown();

@@ -945,7 +945,6 @@ std::string format(const char* fmt, const Args&... args)
     return oss.str();
 }
 
-#if 0
 
 /// Format list of arguments to std::cout, according to the given format string
 template<typename... Args>
@@ -953,7 +952,6 @@ void printf(const char* fmt, const Args&... args)
 {
     format(std::cout, fmt, args...);
 }
-#endif
 
 template<typename... Args>
 void printfln(const char* fmt, const Args&... args)
@@ -977,12 +975,10 @@ inline std::string format(const char* fmt)
     return oss.str();
 }
 
-#if 0
 inline void printf(const char* fmt)
 {
     format(std::cout, fmt);
 }
-#endif
 
 inline void printfln(const char* fmt)
 {
