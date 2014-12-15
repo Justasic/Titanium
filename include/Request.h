@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdio>
 #include <string>
+#include "tinyformat.h"
 
 
 // libfcgi-dev includes
@@ -17,11 +18,31 @@ public:
 
 	~Request();
 
-	// Write to the datta stream as plain text
-	void Write(const char *str, ...);
+	inline void Write(const std::string &str)
+	{
+		this->WriteData(str.c_str(), str.length());
+	}
+
+	// Write to the data stream as plain text
+	template<typename... Args>
+	void Write(const std::string &str, const Args&... args)
+	{
+		std::string tmp = tfm::format(str.c_str(), args...);
+		this->WriteData(tmp.c_str(), tmp.length());
+	}
 
 	// Write binary data to the data stream
-	void Write(void*, size_t len);
+	template<typename ptr>
+	void WriteData(ptr *data, size_t len)
+	{
+		if (!data || !len)
+			return;
+
+		// Write to the FastCGI data stream
+		FCGX_PutStr(reinterpret_cast<const char *>(data), len, this->request->out);
+	}
+
+
 
 	std::string GetParam(const std::string &str);
 

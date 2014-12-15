@@ -18,7 +18,7 @@ char *SizeReduce(size_t size)
 		"YB"
 	};
 
-	int sz = 0;
+	unsigned long sz = 0;
 	for (sz = 0; size > 1024; size >>= 10, sz++)
 		;
 

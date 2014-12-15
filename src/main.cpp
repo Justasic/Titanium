@@ -10,18 +10,15 @@
 #include <cerrno>
 #include <atomic>
 
-// Mysql
-#include <mysql/my_global.h>
-#include <mysql/mysql.h>
-
 // Our thread engine.
 #include "ThreadEngine.h"
-
+#include "MySQL.h"
 #include "Request.h"
 
 std::atomic_bool quit;
 
 ThreadHandler *threads;
+MySQL *ms;
 
 void OpenListener(int sock_fd)
 {
@@ -44,15 +41,27 @@ void OpenListener(int sock_fd)
 		r.Write("Content-Type: text/html\r\n\r\n");
 
 		// Send our message
-		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING").c_str(), ThreadHandler::GetThreadID());
+		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING"), ThreadHandler::GetThreadID());
 
-		r.Write("<p>%s<br/>", r.GetParam("REMOTE_ADDR").c_str());
-		r.Write("%s<br/>", r.GetParam("REQUEST_URI").c_str());
-		r.Write("%s<br/>", r.GetParam("SERVER_PROTOCOL").c_str());
-		r.Write("%s<br/>", r.GetParam("REQUEST_METHOD").c_str());
-		r.Write("%s<br/>", r.GetParam("REMOTE_PORT").c_str());
-		r.Write("%s<br/>", r.GetParam("SCRIPT_NAME").c_str());
+		r.Write("<p>%s<br/>", r.GetParam("REMOTE_ADDR"));
+		r.Write("%s<br/>", r.GetParam("REQUEST_URI"));
+		r.Write("%s<br/>", r.GetParam("SERVER_PROTOCOL"));
+		r.Write("%s<br/>", r.GetParam("REQUEST_METHOD"));
+		r.Write("%s<br/>", r.GetParam("REMOTE_PORT"));
+		r.Write("%s<br/>", r.GetParam("SCRIPT_NAME"));
 		r.Write("</p>");
+		r.Write("<br /><br /><br /><h2>MySQL Query:</h2><br />");
+
+		printf("Running MySQL Query...\n");
+		// Test Query
+		MySQL_Result mr = ms->Query("SELECT * from testtbl");
+
+		for (auto it : mr.rows)
+		{
+			for (int i = 0; i < mr.fields; ++i)
+				r.Write("%s ", it.second[i] ? it.second[i] : "(NULL)");
+			r.Write("<br/>");
+		}
 
 		FCGX_Finish_r(&request);
 	}
@@ -75,23 +84,10 @@ int main(int argc, char **argv)
 	printf("Opened socket fd: %d\n", sock_fd);
 
 	// Initialize MySQL
-	printf("MySQL client version: %s\n", mysql_get_client_info());
+	MySQL m("localhost", "root", "", "test");
+	ms = &m;
 
-	MYSQL *con = mysql_init(NULL);
-	if (!con)
-	{
-		fprintf(stderr, "%s\n", mysql_error(con));
-		return EXIT_FAILURE;
-	}
-
-	if (!mysql_real_connect(con, "localhost", "root", "root_pswd", NULL, 0, NULL, 0))
-	{
-		fprintf(stderr, "%s\n", mysql_error(con));
-		mysql_close(con);
-		return EXIT_FAILURE;
-	}
-
-	for (int i = 0; i < 10; ++i)
+	for (unsigned int i = 0; i < (th.totalConcurrentThreads * 2) / 2; ++i)
 		th.AddQueue(OpenListener, sock_fd);
 
 	printf("Submitting jobs...\n");
@@ -105,7 +101,7 @@ int main(int argc, char **argv)
 	printf("Shutting down.\n");
 	th.Shutdown();
 
-	mysql_close(con);
+
 
 	return EXIT_SUCCESS;
 }
