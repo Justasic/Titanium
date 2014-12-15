@@ -56,6 +56,8 @@ void OpenListener(int sock_fd)
 		// Test Query
 		MySQL_Result mr = ms->Query("SELECT * from testtbl");
 
+		printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
+
 		for (auto it : mr.rows)
 		{
 			for (int i = 0; i < mr.fields; ++i)

@@ -44,14 +44,7 @@ MySQL_Result MySQL::Query(const std::string &query)
 	MYSQL_ROW row;
 	int cnt = 0;
 	while ((row = mysql_fetch_row(result)))
-	{
-		res.rows[cnt] = row;
-// 		for(int i = 0; i < num_fields; i++)
-// 		{
-// 			printf("%s ", row[i] ? row[i] : "NULL");
-// 		}
-// 		printf("\n");
-	}
+		res.rows[cnt++] = row;
 
 	mysql_free_result(result);
 
