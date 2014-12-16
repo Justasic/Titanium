@@ -12,6 +12,7 @@
 
 // Our thread engine.
 #include "ThreadEngine.h"
+#include "EventDispatcher.h"
 #include "MySQL.h"
 #include "Request.h"
 
@@ -19,6 +20,8 @@ std::atomic_bool quit;
 
 ThreadHandler *threads;
 MySQL *ms;
+EventDispatcher OnRequest;
+
 
 void OpenListener(int sock_fd)
 {
@@ -36,6 +39,10 @@ void OpenListener(int sock_fd)
 
 		// Set the status to 200 OK
 		r.SetStatus(200);
+
+		// Call an event, this will later be used by plugins
+		// once they register with the handler.
+		//OnRequest.CallVoidEvent("REQUEST", r, r.GetParam("SCRIPT_NAME"));
 
 		// Form the HTTP header enough, nginx will fill in the rest.
 		r.Write("Content-Type: text/html\r\n\r\n");
@@ -112,8 +119,6 @@ int main(int argc, char **argv)
 
 	printf("Shutting down.\n");
 	th.Shutdown();
-
-
 
 	return EXIT_SUCCESS;
 }
