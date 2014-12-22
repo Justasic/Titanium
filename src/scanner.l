@@ -43,17 +43,16 @@
 (?i:retries)          { return token::RETRIES; }
 
  /* Ignore white space */
-[ \t]                 { }
-\n                    { /*++lineno;*/ }
+[ \t\n]               { }
 [0-9]+                { yylval->ival = atoi(yytext); return token::CINT; }
 \"[^\"\n]*[\"\n]      { yytext[yyleng - 1] = 0; yylval->sval = yytext + 1; return token::STR; }
 true|yes              { yylval->bval = true; return token::BOOL; }
 false|no              { yylval->bval = false; return token::BOOL; }
 "/*"                  { BEGIN(COMMENT); commentstart = yylineno; }
 <COMMENT>"*/"         { BEGIN(INITIAL); }
-<COMMENT>([^*]|\n)+|. { /*++lineno;*/ }
+<COMMENT>([^*]|\n)+|. { }
 <COMMENT><<EOF>>      { printf("line %d: Unterminated comment\n", commentstart+1); return 0; }
-"//".*\n              { /* Ignore comments */ /*++lineno;*/ }
+"//".*\n              { /* Ignore comments */ }
 .                     { return yytext[0]; }
 
 %%
