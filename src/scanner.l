@@ -17,6 +17,7 @@
 %option nounput
 %option noinput
 %option yylineno
+ //%option case-insensitive
 
 %x COMMENT
 

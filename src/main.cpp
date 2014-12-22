@@ -111,7 +111,12 @@ int main(int argc, char **argv)
 	threads = &th;
 
 	FCGX_Init();
-	int sock_fd = FCGX_OpenSocket(":3000", 1024);
+	// Formulate the string from the config.
+	std::stringstream val;
+	val << c->bind << ":" << c->port;
+	// Initialize a new FastCGI socket.
+	std::cout << "Opening FastCGI socket: " << val.str() << std::endl;
+	int sock_fd = FCGX_OpenSocket(val.str().c_str(), 1024);
 	printf("Opened socket fd: %d\n", sock_fd);
 
 	// Initialize MySQL
