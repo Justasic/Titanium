@@ -8,6 +8,7 @@
 #include <string>
 #include <cstring>
 
+
 // Mysql
 #include <mysql/my_global.h>
 #include <mysql/mysql.h>
@@ -27,6 +28,12 @@ public:
 		this->str = strdup(mstr.c_str());
 	}
 
+	~MySQLException()
+	{
+		// albeit this is very bad, I won't concern myself with it right now.
+		delete this->str;
+	}
+
 	const char *what() const noexcept
 	{
 		return this->str;
@@ -41,11 +48,14 @@ class MySQL
 	// As much as I hate storing these, we must to reconnect on timeouts.
 	std::string user, pass, host, db;
 
+	// MySQL server's port.
+	short int port;
+
 	// Used to connect to the database
 	bool DoConnection();
 public:
 
-	MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db);
+	MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, short);
 	~MySQL();
 
 	// Run a query

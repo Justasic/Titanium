@@ -151,8 +151,6 @@ find_package(MySQL REQUIRED)
 find_package(FastCGI REQUIRED)
 
 # Check flex version to prevent yylex_destroy link errors.
-execute_process(COMMAND ${FLEX_EXECUTABLE} -V OUTPUT_VARIABLE flex_out OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REGEX REPLACE "flex[ \t]+" "" FLEX_VERSION ${flex_out})
 if(${FLEX_VERSION} VERSION_LESS "2.5.9")
         message(FATAL_ERROR "Your flex version is ${FLEX_VERSION}, You must have flex version 2.5.9 or higher!")
 endif(${FLEX_VERSION} VERSION_LESS "2.5.9")

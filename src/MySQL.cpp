@@ -3,8 +3,8 @@
 #include "misc.h"
 
 
-MySQL::MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db) :
-	user(user), pass(pass), host(host), db(db)
+MySQL::MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, short p = 0) :
+	user(user), pass(pass), host(host), db(db), port(p)
 {
 	printf("MySQL client version: %s\n", mysql_get_client_info());
 
@@ -63,7 +63,7 @@ bool MySQL::DoConnection()
 {
 	// If mysql_real_connect returns NULL then we have failed to connect, return true or false or whatever
 	return mysql_real_connect(this->con, this->host.c_str(), this->user.c_str(),
-				  this->pass.c_str(), this->db.c_str(), 0, NULL, 0) != NULL;
+				  this->pass.c_str(), this->db.c_str(), this->port, NULL, 0) != NULL;
 }
 
 bool MySQL::CheckConnection()

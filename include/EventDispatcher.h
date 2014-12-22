@@ -20,8 +20,8 @@ typedef std::function<EventReturn()> eventfunc_t;
 
 class EventDispatcher
 {
-	std::map<std::string, eventfunc_t> retevents;
-	std::map<std::string, voidfunc_t> voidevents;
+	std::map<std::string, std::vector<eventfunc_t>> retevents;
+	std::map<std::string, std::vector<voidfunc_t>> voidevents;
 public:
 	EventDispatcher() {}
 	~EventDispatcher() {}
@@ -32,7 +32,7 @@ public:
 	{
 		eventfunc_t func = std::function<EventReturn()>(__f);
 		//std::bind(std::forward<_Function>(__f), std::forward<_Args>(__args)...);
-		retevents[name] = func;
+		retevents[name].push_back(func);
 	}
 
 	template<class _Function>
@@ -40,18 +40,21 @@ public:
 	{
 		voidfunc_t func = std::function<void()>(__f);
 		//std::bind(std::forward<_Function>(__f), std::forward<_Args>(__args)...);
-		voidevents[name] = func;
+		voidevents[name].push_back(func);
 	}
 
 	template<class... _Args>
 	void CallVoidEvent(const std::string &name, _Args&&... __args)
 	{
-		for (std::map<std::string, voidfunc_t>::const_iterator it = voidevents.begin(), it_end = voidevents.end(); it != it_end; ++it)
+		for (std::map<std::string, std::vector<voidfunc_t>>::const_iterator it = voidevents.begin(), it_end = voidevents.end(); it != it_end; ++it)
 		{
 			if (it->first == name)
 			{
-				voidfunc_t func = std::bind(it->second, std::forward<_Args>(__args)...);
-				func();
+				for (auto it : it->second)
+				{
+					voidfunc_t func = std::bind(it, std::forward<_Args>(__args)...);
+					func();
+				}
 			}
 		}
 	}
@@ -60,14 +63,17 @@ public:
 	template<class... _Args>
 	EventReturn CallReturnEvent(const std::string &name, _Args&&... __args)
 	{
-		for (std::map<std::string, eventfunc_t>::const_iterator it = retevents.begin(), it_end = retevents.end(); it != it_end; ++it)
+		for (std::map<std::string, std::vector<eventfunc_t>>::const_iterator it = retevents.begin(), it_end = retevents.end(); it != it_end; ++it)
 		{
 			if (it->first == name)
 			{
-				eventfunc_t func = std::bind(it->second, std::forward<_Args>(__args)...);
-				EventReturn ret = func();
-				if (ret != EVENT_CONTINUE)
-					return ret;
+				for (auto it : it->second)
+				{
+					eventfunc_t func = std::bind(it, std::forward<_Args>(__args)...);
+					EventReturn ret = func();
+					if (ret != EVENT_CONTINUE)
+						return ret;
+				}
 			}
 		}
 

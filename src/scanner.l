@@ -2,6 +2,14 @@
         #include "parser.hpp"
       /*  int lineno = 0;*/
         int commentstart = 0;
+        #pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wdeprecated-register"
+	typedef yy::Parser::token token;
+
+	#define YY_DECL int yylex(yy::Parser::semantic_type *yylval, \
+		yy::Parser::location_type *yylloc, Config *ctx)
+
+	#define YY_USER_ACTION yylloc->columns(yyleng);
 %}
 
 
@@ -9,44 +17,37 @@
 %option nounput
 %option noinput
 %option yylineno
-%option c++
 
 %x COMMENT
 
 %%
 
- /* the tokens */
-bind             { return BIND; } /* IP/interface to bind to */
-port             { return PORT; } /* port to listen on */
-username         { return USERNAME; } /* Mysql username */
-password         { return PASSWORD; } /* MySQL password */
-database         { return DATABASE; } /* MySQL database */
-host             { return HOST; }     /* MySQL host */
-pidfile          { return PIDFILE; }  /* PID file location */
-daemonize        { return DAEMONIZE; }/* whether to fork to the background */
-mysql            { return MYSQL; }
-module           { return MODULE; }
-server           { return SERVER; }
-retries          { return RETRIES; }
+%{
+	// start where previous token ended.
+	yylloc->step();
+%}
 
- /*       { return MYSQLHOST; }
-mysql_user       { return MYSQLUSER; }
-fixpath          { return FIXPATH; }
-user             { return USER; }
-group            { return GROUP; }
-readtimeout      { return READTIMEOUT; }
-listen           { return LISTEN; }
-name             { return NAME; }
-path             { return PATH; }
-modulesearchpath { return MODSEARCHPATH; }*/
+ /* the tokens */
+(?i:bind)             { return token::BIND; } /* IP/interface to bind to */
+(?i:port)             { return token::PORT; } /* port to listen on */
+(?i:username)         { return token::USERNAME; } /* Mysql username */
+(?i:password)         { return token::PASSWORD; } /* MySQL password */
+(?i:database)         { return token::DATABASE; } /* MySQL database */
+(?i:host)             { return token::HOST; }     /* MySQL host */
+(?i:pidfile)          { return token::PIDFILE; }  /* PID file location */
+(?i:daemonize)        { return token::DAEMONIZE; }/* whether to fork to the background */
+(?i:mysql)            { return token::MYSQL; }
+(?i:module)           { return token::MODULE; }
+(?i:server)           { return token::SERVER; }
+(?i:retries)          { return token::RETRIES; }
 
  /* Ignore white space */
 [ \t]                 { }
 \n                    { /*++lineno;*/ }
-[0-9]+                { yylval.ival = atoi(yytext); return CINT; }
-\"[^\"\n]*[\"\n]      { yytext[yyleng - 1] = 0; yylval.sval = yytext + 1; return STR; }
-true|yes              { yylval.bval = 1; return BOOL; }
-false|no              { yylval.bval = 0; return BOOL; }
+[0-9]+                { yylval->ival = atoi(yytext); return token::CINT; }
+\"[^\"\n]*[\"\n]      { yytext[yyleng - 1] = 0; yylval->sval = yytext + 1; return token::STR; }
+true|yes              { yylval->bval = true; return token::BOOL; }
+false|no              { yylval->bval = false; return token::BOOL; }
 "/*"                  { BEGIN(COMMENT); commentstart = yylineno; }
 <COMMENT>"*/"         { BEGIN(INITIAL); }
 <COMMENT>([^*]|\n)+|. { /*++lineno;*/ }
@@ -56,3 +57,4 @@ false|no              { yylval.bval = 0; return BOOL; }
 
 %%
 
+#pragma clang diagnostic pop

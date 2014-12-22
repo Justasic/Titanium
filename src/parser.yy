@@ -1,23 +1,47 @@
-%{
-#include "Config.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-
-extern int yylex();
-extern void yyerror(const char *s);
-
-extern Config *c;
-%}
-
+%language "C++"
+%defines
+%locations
 %error-verbose
+
+%define parser_class_name { Parser }
+
+// Add our custom Config class to the parser
+// so we can use it. Forward declare it because
+// it cannot be included in the definitions file.
+%parse-param { Config *ctx }
+%lex-param   { Config *ctx }
+
+// This is a %code requires because it will allow
+// us to include the header file which provides
+// the definitions for the above %parse-param parameters.
+%code requires {
+	#include "Config.h"
+}
+
+// Require bison 2.3 or newer
+%require "2.3"
+
+// Use newer C++ code
+%skeleton "lalr1.cc"
+
+%{
+	extern "C" void yyerror(const char *s);
+
+	// we include our own definitions file simply to forward declare
+	// this function.
+	#include "parser.hpp"
+	extern int yylex(yy::Parser::semantic_type *yylval, yy::Parser::location_type *yylloc,
+			Config *ctx);
+
+	// Temporary for debug reasons.
+	#include "tinyformat.h"
+%}
 
 %union
 {
-        int ival;
-        char *sval;
-        char bval;
+	int ival;
+	char *sval;
+	bool bval;
 }
 
 %token <ival> CINT
@@ -51,6 +75,8 @@ extern Config *c;
 %token FIXPATH
 %token MODSEARCHPATH*/
 
+%start conf
+
 %%
 
 conf: | conf conf_items;
@@ -80,7 +106,7 @@ module_entry: MODULE
 
 MySQL_entry: MYSQL
 {
-
+	// We already have a Config object, nothing to concern ourselves with.
 }
 '{' MySQL_items '}';
 
@@ -97,7 +123,7 @@ server_entry: SERVER
 '{' server_items '}';
 
 server_items: | server_item server_items;
-server_item: server_daemonize | server_pidfile;
+server_item: server_daemonize | server_pidfile | server_port | server_bind;
 
 MySQL_items: | MySQL_item MySQL_items;
 MySQL_item: MySQL_host | MySQL_port | MySQL_username | MySQL_database | MySQL_password | MySQL_retrytimes;
@@ -125,47 +151,32 @@ module_name: NAME '=' STR ';'
 
 MySQL_host: HOST '=' STR ';'
 {
-/*	curblock->bindaddr = strdup(yylval.sval);
-	if (!curblock->bindaddr)
-	{
-		fprintf(stderr, "Failed to parse config: %s\n", strerror(errno));
-		exit(1);
-	}*/
+	ctx->hostname = yyla.value.sval;
+	tfm::printf(" MySQL Hostname: %s\n", ctx->hostname);
 };
 
 MySQL_username: USERNAME '=' STR ';'
 {
-/*	curblock->bindaddr = strdup(yylval.sval);
-	if (!curblock->bindaddr)
-	{
-		fprintf(stderr, "Failed to parse config: %s\n", strerror(errno));
-		exit(1);
-	}*/
+	ctx->username = yyla.value.sval;
+	tfm::printf(" MySQL Username: %s\n", ctx->username);
 };
 
 MySQL_password: PASSWORD '=' STR ';'
 {
-/*	curblock->bindaddr = strdup(yylval.sval);
-	if (!curblock->bindaddr)
-	{
-		fprintf(stderr, "Failed to parse config: %s\n", strerror(errno));
-		exit(1);
-	}*/
+	ctx->password = yyla.value.sval;
+	tfm::printf(" MySQL Password: %s\n", ctx->password);
 };
 
 MySQL_database: DATABASE '=' STR ';'
 {
-/*	curblock->bindaddr = strdup(yylval.sval);
-	if (!curblock->bindaddr)
-	{
-		fprintf(stderr, "Failed to parse config: %s\n", strerror(errno));
-		exit(1);
-	}*/
+	ctx->database = yyla.value.sval;
+	tfm::printf(" MySQL Database: %s\n", ctx->database);
 };
 
 MySQL_port: PORT '=' CINT ';'
 {
-/* 	curblock->port = yylval.ival; */
+	ctx->mysqlport = yyla.value.ival;
+	tfm::printf(" MySQL Port: %d\n", ctx->mysqlport);
 };
 
 MySQL_retrytimes: RETRIES '=' CINT ';'
@@ -215,17 +226,26 @@ server_module_search_path: MODSEARCHPATH '=' STR ';'
 
 server_daemonize: DAEMONIZE '=' BOOL ';'
 {
-/* 	config->daemonize = yylval.bval; */
+	ctx->daemonize = yyla.value.bval;
+	tfm::printf(" Daemonize: %s\n", ctx->daemonize);
 };
 
 server_pidfile: PIDFILE '=' STR ';'
 {
-/*	config->pidfile = strdup(yylval.sval);
-	if (!config->pidfile)
-	{
-		fprintf(stderr, "Failed to parse config: %s\n", strerror(errno));
-		exit(1);
-	}*/
+	ctx->pidfile = yyla.value.sval;
+	tfm::printf(" PIDFile: %s\n", ctx->pidfile);
+};
+
+server_port: PORT '=' CINT ';'
+{
+	tfm::printf(" Server port: %d\n", yyla.value.ival);
+	ctx->port = yyla.value.ival;
+};
+
+server_bind: BIND '=' STR ';'
+{
+	ctx->bind = yyla.value.sval;
+	tfm::printf(" Server bind: %s\n", ctx->bind);
 };
 
 /*server_readtimeout: READTIMEOUT '=' CINT ';'

@@ -14,12 +14,14 @@
 #include "ThreadEngine.h"
 #include "EventDispatcher.h"
 #include "MySQL.h"
+#include "Config.h"
 #include "Request.h"
 
 std::atomic_bool quit;
 
 ThreadHandler *threads;
 MySQL *ms;
+Config *c;
 EventDispatcher OnRequest;
 
 
@@ -66,15 +68,20 @@ void OpenListener(int sock_fd)
 
 		printf("Running MySQL Query...\n");
 		// Test Query
-		MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("testtbl"));
-
-		printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
-
-		for (auto it : mr.rows)
+		try {
+			MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("testtbl"));
+			for (auto it : mr.rows)
+			{
+				for (int i = 0; i < mr.fields; ++i)
+					r.Write("%s ", it.second[i] ? it.second[i] : "(NULL)");
+				r.Write("<br/>");
+			}
+			printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
+		}
+		catch(const MySQLException &e)
 		{
-			for (int i = 0; i < mr.fields; ++i)
-				r.Write("%s ", it.second[i] ? it.second[i] : "(NULL)");
-			r.Write("<br/>");
+			printf("MySQL error: %s\n", e.what());
+			r.Write("<p>MySQL error: %s</p><br/>", e.what());
 		}
 
 		r.Write("</html>");
@@ -91,6 +98,14 @@ int main(int argc, char **argv)
 {
 	std::vector<std::string> args(argv, argv+argc);
 	quit = false;
+
+	// Parse our config before anything
+	Config conf("adkit.conf");
+	c = &conf;
+
+	printf("Config:\n");
+	c->Parse();
+
 	ThreadHandler th;
 	th.Initialize();
 	threads = &th;
@@ -100,7 +115,7 @@ int main(int argc, char **argv)
 	printf("Opened socket fd: %d\n", sock_fd);
 
 	// Initialize MySQL
-	MySQL m("localhost", "root", "", "test");
+	MySQL m(c->hostname, c->username, c->password, c->database, c->mysqlport);
 	ms = &m;
 
 	for (unsigned int i = 0; i < (th.totalConcurrentThreads * 2) / 2; ++i)
