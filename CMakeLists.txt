@@ -64,7 +64,7 @@ if (NOT NO_CLANG)
 endif (NOT NO_CLANG)
 
 # Finally initialize our project
-project(adkit CXX)
+project(Titanium CXX)
 enable_language(C)
 
 include (CheckCXXCompilerFlag)
