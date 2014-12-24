@@ -46,5 +46,32 @@ fail:
 	printf("Architecture: %s\n", u.machine);
 	printf("OS: %s %s\n", u.sysname, u.release);
 
+	// Try to get release information
+	FILE *f = fopen("/etc/lsb-release", "r");
+	if (!f && errno == EEXIST)
+	{
+		// skip.
+	}
+	if (!f)
+	{
+		fprintf(stderr, "Failed to open file /etc/lsb-release: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	else
+	{
+		// get length of file
+		fseek(f, 0, SEEK_END);
+		size_t len = ftell(f);
+		rewind(f);
+
+		// Read entire file into memory then parse it.
+		char *file = malloc(len);
+		fread(file, sizeof(char), len, f);
+		fclose(f);
+		printf("DEBUG: file: \"%s\"\n", file);
+
+		free(file);
+	}
+
 	return EXIT_SUCCESS;
 }
