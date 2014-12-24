@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 201412L // This is the year+month of writing this line.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
