@@ -12,6 +12,7 @@
 #include <time.h>
 #include <errno.h>
 #include <getopt.h>
+#include <signal.h>
 
 // Some typedefs to make things easier
 typedef struct sysinfo sysinfo_t;
@@ -19,12 +20,21 @@ typedef struct utsname utsname_t;
 
 // Global variable on whether or not we're quitting
 char quit = 0;
-int verbose = 0;
+int verbose = 0, port = 1396;
+char *ipaddress = NULL, *pidfile = NULL;
 
 typedef struct information_s {
 	sysinfo_t s;
 	utsname_t u;
 } information_t;
+
+void HandleSignals(int sig)
+{
+	printf("Received signal %d\n", sig);
+	quit = 1;
+	// Ignore the signal, we'll quit gracefully.
+	signal(sig, SIG_IGN);
+}
 
 void CollectInformation(information_t *info)
 {
@@ -85,6 +95,14 @@ void SendInformation(information_t *info)
 
 }
 
+void WritePIDFile(const char *file)
+{
+	FILE *f = fopen(file, "w");
+	fprintf(f, "%d\n", getpid());
+	fflush(f);
+	fclose(f);
+}
+
 void ParseCommandLineArguments(int argc, char **argv)
 {
 	static struct option long_options[] =
@@ -104,7 +122,7 @@ void ParseCommandLineArguments(int argc, char **argv)
 
 	int c = 0, option_index = 0;
 
-	while((c = getopt_long (argc, argv, "fc:p:", long_options, &option_index)) != -1)
+	while((c = getopt_long (argc, argv, "fhc:p:", long_options, &option_index)) != -1)
 	{
 
 		switch (c)
@@ -113,19 +131,25 @@ void ParseCommandLineArguments(int argc, char **argv)
 				if (!strcasecmp(long_options[option_index].name, "verbose"))
 					printf("verbose flag here.\n");
 				else
+				{
+					pidfile = strdup(optarg);
+					WritePIDFile(optarg);
 					printf("PID file: %s\n", optarg);
+				}
 				break;
 			case 'c':
 				printf("Sending statistical info to %s\n", optarg);
+				ipaddress = strdup(optarg);
 				break;
 			case 'p':
 				printf("Sending statical info to port %s\n", optarg);
+				port = atoi(optarg);
 				break;
 			case 'f':
 				printf("No forking requested\n");
 				break;
 			case 'h':
-			case '?':
+			case '?': fail:
 				/* getopt_long already printed an error message. */
 				fprintf(stderr, "OVERVIEW: Titanium statistical information collector\n\n");
 				fprintf(stderr, "USAGE: Titanium [options]\n\n");
@@ -142,11 +166,20 @@ void ParseCommandLineArguments(int argc, char **argv)
 				abort();
 		}
 	}
+
+	if (!ipaddress)
+	{
+		fprintf(stderr, "--connect requires an IP address or hostname\n");
+		goto fail;
+	}
 }
 
 // Entry Point.
 int main (int argc, char **argv)
 {
+	signal(SIGINT, HandleSignals);
+	signal(SIGTERM, HandleSignals);
+
 	// Parse command line arguments so we know what is going where.
 	ParseCommandLineArguments(argc, argv);
 
@@ -160,6 +193,12 @@ int main (int argc, char **argv)
 		// We will make this adjustable eventually.
 		sleep(5);
 	}
+
+	// Clean up.
+	free(ipaddress);
+	free(pidfile);
+
+	printf("Exiting!\n");
 
 	return EXIT_SUCCESS;
 }
