@@ -20,11 +20,7 @@
 
 #include "multiplexer.h"
 #include "misc.h"
-#include "config.h"
-#include "client.h"
-#include "process.h"
-#include "vec.h"
-#include "module.h"
+#include "Config.h"
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -32,6 +28,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <assert.h>
+#include <vector>
 
 /* Not sure why these break but whatever. */
 typedef unsigned short u_short;
@@ -42,16 +39,17 @@ typedef unsigned int u_int;
 static int KqueueHandle = -1;
 // Make it easier
 typedef struct kevent kevent_t;
-vec_t(kevent_t) events, changed;
+std::vector<kevent_t> events, changed;
 // Default kqueue idle time, will be changed on init
 static struct timespec kqtime = {5, 0};
 
 static inline kevent_t *GetChangeEvent(void)
 {
-	if (changed.length == changed.capacity)
-		vec_reserve(&changed, changed.length * 2);
-	
-	return &(changed.data[changed.length++]);
+	if (changed.size() == changed.capacity())
+		changed.reserve(changed.size() * 2);
+
+	return changed.data[changed.size()];
+// 	return &(changed.data[changed.length++]);
 }
 
 int AddToMultiplexer(socket_t *s)
@@ -110,60 +108,49 @@ int InitializeMultiplexer(void)
 		return -1;
 	}
 
-	// Initialize
-	vec_init(&events);
-	vec_init(&changed);
-	
 	// Reserve some initial space
-	vec_reserve(&events, 5);
-	vec_reserve(&changed, 5);
-	
-	// Reinitialize the arrays.
-	memset(events.data, 0, sizeof(kevent_t) * 5);
-	memset(changed.data, 0, sizeof(kevent_t) * 5);
+	events.reserve(5);
+	changed.reserve(5);
 
 	// Set kqueue idle timeout from config
-	kqtime.tv_sec = config->readtimeout;
-	
+	kqtime.tv_sec = c->readtimeout;
+
 	return 0;
 }
 
 int ShutdownMultiplexer(void)
 {
 	close(KqueueHandle);
-	
-	vec_deinit(&events);
-	vec_deinit(&changed);
 
 	return 0;
 }
 
 void ProcessSockets(void)
 {
-	if (socketpool.length > events.capacity)
-		vec_reserve(&events, socketpool.length * 2);
-	
+	if (socketpool.length > events.capacity())
+		events.reserve(socketpool.length * 2);
+
 	dprintf("Entering kevent\n");
-	
-	int total = kevent(KqueueHandle, &vec_first(&changed), changed.length, &vec_first(&events), events.capacity, &kqtime);
-	
+
+	int total = kevent(KqueueHandle, changed.data(), changed.size(), events.data(), events.capacity(), &kqtime);
+
 	// Reset the changed count.
-	vec_clear(&changed);
-	
+	changed.erase(changed.begin(), changed.end());
+
 	if (total == -1)
 	{
 		if (errno != EINTR)
 			fprintf(stderr, "Error processing sockets: %s\n", strerror(errno));
 		return;
 	}
-	
+
 	for (int i = 0; i < total; ++i)
 	{
-		kevent_t *ev = &(events.data[i]);
-		
+		kevent_t *ev = events.data()[i];
+
 		if (ev->flags & EV_ERROR)
 			continue;
-		
+
 		socket_t s;
 		if (FindSocket(ev->ident, &s) == -1)
 		{
@@ -177,24 +164,24 @@ void ProcessSockets(void)
 			close(ev->ident);
 			continue;
 		}
-		
+
 		// Call our event.
 		CallEvent(EV_SOCKETACTIVITY, &s);
-		
+
 		if (ev->flags & EV_EOF)
 		{
 			dprintf("Kqueue error reading socket %d, destroying.\n", s.fd);
 			DestroySocket(s, 1);
 			continue;
 		}
-		
+
 		// process socket read events.
 		if (ev->filter & EVFILT_READ && ReceivePackets(s) == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
 			DestroySocket(s, 1);
 		}
-		
+
 		// Process socket write events
 		if (ev->filter & EVFILT_WRITE && SendPackets(s) == -1)
 		{

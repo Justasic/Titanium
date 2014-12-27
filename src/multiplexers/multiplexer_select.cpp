@@ -32,12 +32,8 @@
 # include <unistd.h>
 #endif
 
-// #include "client.h"
 #include "multiplexer.h"
-#include "config.h"
-#include "vec.h"
-#include "process.h"
-#include "module.h"
+#include "Config.h"
 
 static fd_set readfds, writefds;
 static int maxfd = 0;
@@ -61,21 +57,21 @@ int RemoveFromMultiplexer(socket_t s)
 int SetSocketStatus(socket_t *s, int status)
 {
 	assert(s);
-	
+
 	if (status & SF_READABLE && !(s->flags & SF_READABLE))
 		FD_SET(s->fd, &readfds);
-	
+
 	if (!(status & SF_READABLE) && s->flags & SF_READABLE)
 		FD_CLR(s->fd, &writefds);
-	
+
 	if (status & SF_WRITABLE && !(s->flags & SF_WRITABLE))
 		FD_SET(s->fd, &writefds);
-	
+
 	if (!(status & SF_WRITABLE) && s->flags & SF_WRITABLE)
 		FD_CLR(s->fd, &writefds);
-	
+
 	s->flags = status;
-	
+
 	return 0;
 }
 
@@ -97,12 +93,12 @@ void ProcessSockets(void)
 {
 	fd_set read = readfds, write = writefds, error = readfds;
 	// Default read time
-	struct timeval seltv = { config->readtimeout, 0 };
-	
+	struct timeval seltv = { c->readtimeout, 0 };
+
 	dprintf("Entering select\n");
-	
+
 	int ret = select(maxfd + 1, &read, &write, &error, &seltv);
-	
+
 	if (ret == -1)
 		fprintf(stderr, "Failed to select(): %s\n", strerror(errno));
 	else if (ret)
@@ -114,24 +110,24 @@ void ProcessSockets(void)
 			int has_read = FD_ISSET(s.fd, &read);
 			int has_write = FD_ISSET(s.fd, &write);
 			int has_error = FD_ISSET(s.fd, &error);
-			
+
 			if (has_error || has_read || has_write)
 				// Call our event.
 				CallEvent(EV_SOCKETACTIVITY, &s);
-			
+
 			if (has_error)
 			{
 				dprintf("select() error reading socket %d, destroying.\n", s.fd);
 				DestroySocket(s, 1);
 				continue;
 			}
-			
+
 			if (has_read && ReceivePackets(s) == -1)
 			{
 				dprintf("Destorying socket due to receive failure!\n");
 				DestroySocket(s, 1);
 			}
-			
+
 			if (has_write && SendPackets(s) == -1)
 			{
 				dprintf("Destorying socket due to send failure!\n");

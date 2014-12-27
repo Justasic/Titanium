@@ -16,6 +16,7 @@
 #include "MySQL.h"
 #include "Config.h"
 #include "Request.h"
+#include "multiplexer.h"
 
 std::atomic_bool quit;
 
@@ -114,6 +115,10 @@ int main(int argc, char **argv)
 	th.Initialize();
 	threads = &th;
 
+	// Initialize the multiplexer for our sockets.
+	InitializeMultiplexer();
+
+	// Initialize the FastCGI library
 	FCGX_Init();
 	// Formulate the string from the config.
 	std::stringstream val;
@@ -127,6 +132,7 @@ int main(int argc, char **argv)
 	MySQL m(c->hostname, c->username, c->password, c->database, c->mysqlport);
 	ms = &m;
 
+	// Start listening threads.
 	for (unsigned int i = 0; i < (th.totalConcurrentThreads * 2) / 2; ++i)
 		th.AddQueue(OpenListener, sock_fd);
 
@@ -137,12 +143,15 @@ int main(int argc, char **argv)
 	printf("Idling main thread.\n");
 	while(!quit)
 	{
-		sleep(5);
+// 		sleep(5);
 		ms->CheckConnection();
+		ProcessSockets();
 	}
 
 	printf("Shutting down.\n");
 	th.Shutdown();
+
+	ShutdownMultiplexer();
 
 	return EXIT_SUCCESS;
 }

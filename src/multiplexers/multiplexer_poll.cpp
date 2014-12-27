@@ -27,43 +27,43 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <vector>
+
 #include "multiplexer.h"
 #include "misc.h"
-#include "vec.h"
-#include "config.h"
-#include "client.h"
-#include "process.h"
-#include "module.h"
+#include "Config.h"
 
 #ifndef _WIN32
 # include <unistd.h>
 #endif
 
+extern Config *c;
+
 typedef struct pollfd poll_t;
-static vec_t(poll_t) events;
+static std::vector<poll_t> events;
 
 int AddToMultiplexer(socket_t *s)
 {
 	poll_t ev;
 	memset(&ev, 0, sizeof(poll_t));
-	
+
 	ev.fd = s->fd;
 	ev.events = POLLIN;
-	
+
 	s->flags = SF_READABLE;
-	
-	vec_push(&events, ev);
+
+	events.push_back(ev);
+
 	return 0;
 }
 
 int RemoveFromMultiplexer(socket_t s)
 {
-	// Find our socket
-	for (int idx = 0; idx < events.length; idx++)
+	for (std::vector<poll_t>::iterator it = events.begin(), it_end = events.end(); it != it_end; ++it)
 	{
-		if (events.data[idx].fd == s.fd)
+		if ((*it).fd == s.fd)
 		{
-			vec_splice(&events, idx, 1);
+			events.erase(it);
 			return 0;
 		}
 	}
@@ -73,59 +73,54 @@ int RemoveFromMultiplexer(socket_t s)
 
 int SetSocketStatus(socket_t *s, int status)
 {
-	// Find our socket, then set the flags needed.
-	for (int idx = 0; idx < events.length; idx++)
+	for (auto it : events)
 	{
-		if (events.data[idx].fd == s->fd)
+		if (it.fd == s->fd)
 		{
-			poll_t *ev = &events.data[idx];
+			poll_t *ev = &it;
 			ev->events = (status & SF_READABLE ? POLLIN : 0) | (status & SF_WRITABLE ? POLLOUT : 0);
 			s->flags = status;
 			return 0;
 		}
 	}
-	
+
 	return -1;
 }
 
 int InitializeMultiplexer(void)
 {
-	vec_init(&events);
-	
-	if (errno == ENOMEM)
-		return -1;
-	
+	// We have no vectors to initialize in C++.
 	return 0;
 }
 
 int ShutdownMultiplexer(void)
 {
-	vec_deinit(&events);
+	// Again, nothing to do.
 	return 0;
 }
 
 void ProcessSockets(void)
 {
 	dprintf("Entering poll\n");
-	
-	int total = poll(&vec_first(&events), events.length, config->readtimeout * 1000);
-	
+
+	int total = poll(events.data(), events.size(), c->readtimeout * 1000);
+
 	if (total < 0)
 	{
 		if (errno != EINTR)
 			fprintf(stderr, "Error processing sockets: %s\n", strerror(errno));
 		return;
 	}
-	
-	for (int i = 0, processed = 0; i < events.length && processed != total; ++i)
+
+	for (int i = 0, processed = 0; i < events.size() && processed != total; ++i)
 	{
-		poll_t *ev = &events.data[i];
-		
+		poll_t *ev = &events[i];
+
 		if (ev->revents != 0)
 			processed++;
 		else // Nothing to do, move on.
 			continue;
-		
+
 		socket_t s;
 		if (FindSocket(ev->fd, &s) == -1)
 		{
@@ -138,24 +133,21 @@ void ProcessSockets(void)
 			RemoveFromMultiplexer(tmp);
 			close(ev->fd);
 			continue;
-		}
-		
-		// Call our event.
-		CallEvent(EV_SOCKETACTIVITY, &s);
-		
+// 		}
+
 		if (ev->revents & (POLLERR | POLLRDHUP))
 		{
-			dprintf("Epoll error reading socket %d, destroying.\n", s.fd);
+			dprintf("poll error reading socket %d, destroying.\n", s.fd);
 			DestroySocket(s, 1);
 			continue;
 		}
-		
+
 		if (ev->revents & POLLIN && ReceivePackets(s) == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
 			DestroySocket(s, 1);
 		}
-		
+
 		if (ev->revents & POLLOUT && SendPackets(s) == -1)
 		{
 			dprintf("Destorying socket due to send failure!\n");

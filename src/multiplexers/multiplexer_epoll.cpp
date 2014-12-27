@@ -20,11 +20,7 @@
 
 #include "multiplexer.h"
 #include "misc.h"
-#include "config.h"
-#include "client.h"
-#include "process.h"
-#include "vec.h"
-#include "module.h"
+#include "Config.h"
 
 #include <sys/epoll.h>
 #include <sys/types.h>
@@ -35,26 +31,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <vector>
+
 typedef struct epoll_event epoll_t;
 // Static because it never leaves this file.
 static int EpollHandle = -1;
-static vec_t(epoll_t) events;
+static std::vector<epoll_t> events;
 
 int AddToMultiplexer(socket_t *s)
 {
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
-	
+
 	ev.events = EPOLLIN;
 	ev.data.fd = s->fd;
 	s->flags = SF_READABLE;
-	
+
 	if (epoll_ctl(EpollHandle, EPOLL_CTL_ADD, s->fd, &ev) == -1)
 	{
 		fprintf(stderr, "Unable to add fd %d from epoll: %s\n", s->fd, strerror(errno));
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -63,13 +61,13 @@ int RemoveFromMultiplexer(socket_t s)
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
 	ev.data.fd = s.fd;
-	
+
 	if (epoll_ctl(EpollHandle, EPOLL_CTL_DEL, ev.data.fd, &ev) == -1)
 	{
 		fprintf(stderr, "Unable to remove fd %d from epoll: %s\n", s.fd, strerror(errno));
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -77,11 +75,11 @@ int SetSocketStatus(socket_t *s, int status)
 {
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
-	
+
 	ev.events = (status & SF_READABLE ? EPOLLIN : 0) | (status & SF_WRITABLE ? EPOLLOUT : 0);
 	ev.data.fd = s->fd;
 	s->flags = status;
-	
+
 	if (epoll_ctl(EpollHandle, EPOLL_CTL_MOD, ev.data.fd, &ev) == -1)
 	{
 		fprintf(stderr, "Unable to set fd %d from epoll: %s\n", s->fd, strerror(errno));
@@ -93,18 +91,16 @@ int SetSocketStatus(socket_t *s, int status)
 int InitializeMultiplexer(void)
 {
 	EpollHandle = epoll_create(4);
-	
+
 	if (EpollHandle == -1)
 		return -1;
-	
-	vec_init(&events);
-	
+
 	// Default of 5 events, it will expand if we get more sockets
-	vec_reserve(&events, 5);
-	
+	events.reserve(5);
+
 	if (errno == ENOMEM)
 		return -1;
-	
+
 	return 0;
 }
 
@@ -112,36 +108,33 @@ int ShutdownMultiplexer(void)
 {
 	// Close the EPoll handle.
 	close(EpollHandle);
-	
-	// Free our events
-	vec_deinit(&events);
-	
+
 	return 0;
 }
 
 void ProcessSockets(void)
 {
-	if (socketpool.length >= events.capacity)
+	if (socketpool.length >= events.capacity())
 	{
 		dprintf("Reserving more space for events\n");
-		vec_reserve(&events, socketpool.length * 2);
+		events.reserve(socketpool.length * 2);
 	}
-	
+
 	dprintf("Entering epoll_wait\n");
-	
-	int total = epoll_wait(EpollHandle, &vec_first(&events), events.capacity, config->readtimeout * 1000);
-	
+
+	int total = epoll_wait(EpollHandle, events.data(), events.capacity(), c->readtimeout * 1000);
+
 	if (total == -1)
 	{
 		if (errno != EINTR)
 			fprintf(stderr, "Error processing sockets: %s\n", strerror(errno));
 		return;
 	}
-	
+
 	for (int i = 0; i < total; ++i)
 	{
-		epoll_t *ev = &(events.data[i]);
-		
+		epoll_t *ev = events.data()[i];
+
 		socket_t s;
 		if (FindSocket(ev->data.fd, &s) == -1)
 		{
@@ -155,24 +148,21 @@ void ProcessSockets(void)
 			close(ev->data.fd);
 			continue;
 		}
-		
-		// Call our event.
-		CallEvent(EV_SOCKETACTIVITY, &s);
-		
+
 		if (ev->events & (EPOLLHUP | EPOLLERR))
 		{
 			dprintf("Epoll error reading socket %d, destroying.\n", s.fd);
 			DestroySocket(s, 1);
 			continue;
 		}
-		
+
 		// process socket read events.
 		if (ev->events & EPOLLIN && ReceivePackets(s) == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
 			DestroySocket(s, 1);
 		}
-		
+
 		// Process socket write events
 		if (ev->events & EPOLLOUT && SendPackets(s) == -1)
 		{
