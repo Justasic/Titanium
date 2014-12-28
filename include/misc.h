@@ -12,3 +12,4 @@
 
 extern char *SizeReduce(size_t size);
 extern std::string GetCurrentDirectory();
+extern std::string Duration(time_t t);

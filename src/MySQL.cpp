@@ -43,7 +43,9 @@ MySQL_Result MySQL::Query(const std::string &query)
 
 	// Store the query result
 	MYSQL_RES *result = mysql_store_result(this->con);
-	if (result == NULL)
+	if (result == NULL && mysql_errno(this->con) == 0)
+		return res;
+	else if (result == NULL)
 		throw MySQLException(tfm::format("%s (%d)\n", mysql_error(this->con), mysql_errno(this->con)));
 
 	// Get total columns/fields w/e

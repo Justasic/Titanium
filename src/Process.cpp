@@ -3,6 +3,8 @@
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include "Socket.h"
+#include "MySQL.h"
+#include "tinyformat.h"
 #include <cstring>
 #include <vector>
 
@@ -38,7 +40,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				// Print our info and return.
 				information_t *info = &w->info;
 
-				printf("\n%ld seconds uptime\n", info->tm.tv_sec - info->s.uptime);
+				printf("\n%ld seconds uptime\n", info->s.uptime);
 				printf("%lu %lu %lu load times\n", info->s.loads[0], info->s.loads[1], info->s.loads[2]);
 				printf("%d processes running\n", info->s.procs);
 
@@ -50,6 +52,42 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				gettimeofday(&tm, NULL);
 
 				printf("%lu.%.6lu second difference\n\n", tm.tv_sec - info->tm.tv_sec, tm.tv_usec - info->tm.tv_usec);
+
+				// Update the MySQL database with this big nasty query.
+				try {
+					// INSERT INTO table (id, name, age) VALUES(1, "A", 19) ON DUPLICATE KEY UPDATE name=VALUES(name), age=VALUES(age)
+					extern MySQL *ms;
+					std::string query;
+					std::string os = ms->Escape(tfm::format("%s %s", info->u.sysname, info->u.release));
+
+					// We gotta do it the old fashioned way. Find the id by our hostname then insert based on that.
+					MySQL_Result res = ms->Query(tfm::format("SELECT id FROM systems WHERE hostname='%s'", ms->Escape(info->u.nodename)));
+					int id = strtol(res.rows[0][0], NULL, 10);
+					if (errno == ERANGE)
+						id = 0;
+					printf("ID: %d\n", id);
+
+					if (id == 0)
+					{
+						query = tfm::format("INSERT INTO systems (uptime, processes, hostname, architecture, os, lastupdate) VALUES(%d, %d, '%s', '%s', '%s', FROM_UNIXTIME(%d))",
+							info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os, time(NULL));
+					}
+					else
+					{
+						// Update the database entry.
+						query = tfm::format("INSERT INTO systems (id, uptime, processes, hostname, architecture, os, lastupdate)"
+						" VALUES(%d, %d, %d, '%s', '%s', '%s', FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE uptime=VALUES(uptime), processes=VALUES(processes),"
+						" architecture=VALUES(architecture), os=VALUES(os), lastupdate=VALUES(lastupdate)",
+							id, info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os, time(NULL));
+					}
+
+					tfm::printf("Running query: \"%s\"\n", query);
+					// Actually run the query
+					ms->Query(query);
+				} catch (const MySQLException &e)
+				{
+					printf("MySQL error: %s\n", e.what());
+				}
 
 				// Remove ourselves from the vector.
 				clients.erase(it);

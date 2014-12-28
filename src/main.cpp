@@ -58,6 +58,9 @@ void OpenListener(int sock_fd)
 		r.Write("</head>");
 		r.Write("<body>");
 
+		// Basic welcome.
+		r.Write("<center><h1>Welcome to Titanium!</h1></center>");
+
 // 		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING"), ThreadHandler::GetThreadID());
 
 // 		r.Write("<p>%s<br/>", r.GetParam("REMOTE_ADDR"));
@@ -68,27 +71,56 @@ void OpenListener(int sock_fd)
 // 		r.Write("%s<br/>", r.GetParam("SCRIPT_NAME"));
 // 		r.Write("</p>");
 // 		r.Write("<br /><br /><br /><h2>MySQL Query:</h2><br />");
+
+		// Dump a table out.
+		r.Write("<table> \
+		<tr> \
+			<th>Hostname</th> \
+			<th>Processes</th> \
+			<th>Uptime</th> \
+			<th>Architecture</th> \
+			<th>Kernel</th> \
+			<th>Last Updated</th> \
+		</tr>");
 //
 // 		printf("Running MySQL Query...\n");
 // 		// Test Query
-// 		try {
-// 			MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("testtbl"));
-// 			for (auto it : mr.rows)
-// 			{
-// 				for (int i = 0; i < mr.fields; ++i)
-// 					r.Write("%s ", it.second[i] ? it.second[i] : "(NULL)");
-// 				r.Write("<br/>");
-// 			}
-// 			printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
-// 		}
-// 		catch(const MySQLException &e)
-// 		{
-// 			printf("MySQL error: %s\n", e.what());
-// 			r.Write("<p>MySQL error: %s</p><br/>", e.what());
-// 		}
+		try {
+			MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("systems"));
+			for (auto it : mr.rows)
+			{
 
-		r.Write("<center><h1>Welcome to Titanium!</h1></center>");
-		r.Write("</body>");
+				r.Write("<tr>");
+
+				time_t utime = strtol(it.second[1], NULL, 10);
+// 				tfm::pr
+// 				time_t snaptime = strtol()
+				std::string uptime = Duration(utime);
+
+				r.Write("<td>%s</td> \
+				<td>%s</td> \
+				<td>%s</td> \
+				<td>%s</td> \
+				<td>%s</td> \
+				<td>%s</td>", it.second[3], it.second[2], uptime, it.second[4],
+					it.second[5], it.second[6]);
+
+				r.Write("</tr>");
+
+// 				for (int i = 0; i < mr.fields; ++i)
+// 					r.Write(" ", it.second[i] ? it.second[i] : "(NULL)");
+// 				r.Write("<br/>");
+			}
+// 			printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
+		}
+		catch(const MySQLException &e)
+		{
+			printf("MySQL error: %s\n", e.what());
+			r.Write("<p>MySQL error: %s</p><br/>", e.what());
+		}
+
+
+		r.Write("</table></body>");
 
 		r.Write("</html>");
 
