@@ -50,7 +50,7 @@ fail:
 	}
 
 	// Print some basics.
-	printf("%ld seconds uptime\n", time(NULL) - info->s.uptime);
+	printf("%ld seconds uptime\n", info->s.uptime);
 	printf("%lu %lu %lu load times\n", info->s.loads[0], info->s.loads[1], info->s.loads[2]);
 	printf("%d processes running\n", info->s.procs);
 	// 	printf("")
