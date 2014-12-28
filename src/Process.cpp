@@ -62,9 +62,13 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 
 					// We gotta do it the old fashioned way. Find the id by our hostname then insert based on that.
 					MySQL_Result res = ms->Query(tfm::format("SELECT id FROM systems WHERE hostname='%s'", ms->Escape(info->u.nodename)));
-					int id = strtol(res.rows[0][0], NULL, 10);
-					if (errno == ERANGE)
-						id = 0;
+					int id = 0;
+					if (!res.rows.empty())
+					{
+						id = strtol(res.rows[0][0], NULL, 10);
+						if (errno == ERANGE)
+							id = 0;
+					}
 					printf("ID: %d\n", id);
 
 					if (id == 0)
