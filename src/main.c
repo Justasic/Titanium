@@ -21,12 +21,13 @@ typedef struct utsname utsname_t;
 
 // Global variable on whether or not we're quitting
 char quit = 0;
-int verbose = 0, port = 1396;
+int verbose = 0, port = 2970;
 char *ipaddress = NULL, *pidfile = NULL;
 
 typedef struct information_s {
 	sysinfo_t s;
 	utsname_t u;
+	time_t timestamp;
 } information_t;
 
 void HandleSignals(int sig)
@@ -62,6 +63,8 @@ fail:
 	printf("Hostname: %s\n", info->u.nodename);
 	printf("Architecture: %s\n", info->u.machine);
 	printf("OS: %s %s\n", info->u.sysname, info->u.release);
+
+	info->timestamp = time(NULL);
 
 	// Try to get release information
 	FILE *f = fopen("/etc/lsb-release", "r");
@@ -144,7 +147,8 @@ void SendInformation(void *data, size_t len)
 			len -= 512;
 		}
 		else    // we're under 512-bytes now, send the remainder.
-			sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
+			len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
+
 	}
 
 	// Close the socket.
@@ -239,14 +243,18 @@ int main (int argc, char **argv)
 	// Parse command line arguments so we know what is going where.
 	ParseCommandLineArguments(argc, argv);
 
+	if (sizeof(information_t) > 512)
+		printf("information_t is greater than 512 bytes! %ld\n", sizeof(information_t));
+
 	// Our main idle loop
 	while (!quit)
 	{
 		information_t info;
 		CollectInformation(&info);
-// 		SendInformation(&info);
+		SendInformation(&info, sizeof(information_t));
 
 		// We will make this adjustable eventually.
+		printf("Idling for 15 seconds\n");
 		sleep(5);
 	}
 
