@@ -1,0 +1,122 @@
+#include <vector>
+#include <cstdio>
+#include <cstdint>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <cstring>
+#include <arpa/inet.h>
+#include <fcntl.h>
+
+#include "Socket.h"
+#include "multiplexer.h"
+#include "tinyformat.h"
+#include "misc.h"
+
+std::vector<Socket*> Socket::sockets;
+
+Socket::Socket(int fd, socket_t addr) : fd(fd)
+{
+	// Copy the socket address union
+	memcpy(&this->addr, &addr, sizeof(socket_t));
+	// Add to socket array
+	sockets.push_back(this);
+	// add to multiplexer so we can start being processed.
+	AddToMultiplexer(this);
+}
+
+Socket::~Socket()
+{
+	// remove ourselves.
+	for (std::vector<Socket*>::iterator it = sockets.begin(), it_end = sockets.end(); it != it_end; ++it)
+		if ((*it)->fd == this->fd)
+			sockets.erase(it);
+
+	RemoveFromMultiplexer(this);
+
+	// Close the file descriptor
+	close(this->fd);
+}
+
+
+void Socket::QueueData(socket_t client, void *data, size_t len)
+{
+	// Queue the data
+	this->dataqueue.push_back(std::make_tuple(client, data, len));
+	// Inform the multiplexer we're ready to write.
+	SetSocketStatus(this, SF_READABLE | SF_WRITABLE);
+}
+
+// These functions should not be called outside the multiplexing system
+int Socket::ReceiveData()
+{
+	return 0;
+}
+
+int Socket::SendData()
+{
+	return 0;
+}
+
+// This function will create and bind to a port and address. It will create and add
+// the socket to the epoll loop. This should be called for each socket created by
+// the config.
+Socket *Socket::CreateSocket(const std::string &str, unsigned short port)
+{
+	int fd = 0;
+	socket_t saddr;
+	memset(&saddr, 0, sizeof(socket_t));
+	// Get the address fanily
+	saddr.sa.sa_family = str.find(":") != std::string::npos ? AF_INET6 : AF_INET;
+	dprintf("Address family is: %s\n", saddr.sa.sa_family == AF_INET6 ? "AF_INET6" : "AF_INET");
+	// Set our port
+	*(saddr.sa.sa_family == AF_INET ? &saddr.in.sin_port : &saddr.in6.sin6_port) = htons(port);
+	// Stupid C++ pointer types.
+	switch (inet_pton(saddr.sa.sa_family, str.c_str(), (saddr.sa.sa_family == AF_INET ? reinterpret_cast<void*>(&saddr.in.sin_addr) : reinterpret_cast<void*>(&saddr.in6.sin6_addr))))
+	{
+		case 1: // Success.
+			break;
+		case 0:
+			tfm::fprintf(stderr, "Invalid %s bind address: %s\n",
+				saddr.sa.sa_family == AF_INET ? "IPv4" : "IPv6", str);
+		default:
+			perror("inet_pton");
+			return nullptr;
+	}
+	// Create the UDP listening socket
+	if ((fd = socket(saddr.sa.sa_family, SOCK_DGRAM, 0)) < 0)
+	{
+		perror("Cannot create socket");
+		return nullptr;
+	}
+
+	// Set it as non-blocking
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	{
+		perror("fcntl O_NONBLOCK");
+		close(fd);
+		return nullptr;
+	}
+
+	// Bind to the socket
+	if (bind(fd, &saddr.sa, saddr.sa.sa_family == AF_INET ? sizeof(saddr.in) : sizeof(saddr.in6)) < 0)
+	{
+		perror("bind failed");
+		close(fd);
+		return nullptr;
+	}
+
+	Socket *s = new Socket(fd, saddr);
+
+	// Return success
+	return s;
+}
+
+Socket *Socket::FindSocket(int fd)
+{
+	for (auto it : sockets)
+		if (it->GetFD() == fd)
+			return it;
+
+	return nullptr;
+}
