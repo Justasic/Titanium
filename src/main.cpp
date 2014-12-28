@@ -109,7 +109,8 @@ int main(int argc, char **argv)
 	c = &conf;
 
 	printf("Config:\n");
-	c->Parse();
+	if (c->Parse() != 0) // Already printed an error.
+		return EXIT_FAILURE;
 
 	ThreadHandler th;
 	th.Initialize();
@@ -140,10 +141,26 @@ int main(int argc, char **argv)
 	th.Submit();
 
 
+	// Iterate over all the sockets we must bind to for UDP listening
+	bool bound = false;
+	for (auto it : c->listenblocks)
+	{
+		if (!Socket::CreateSocket(it->bind, it->port))
+			continue; // We already printed an error, just keep going.
+		else
+			bound = true;
+	}
+
+	// We failed to bind to any of the ports, no point in keeping the program running.
+	if (!bound)
+	{
+		fprintf(stderr, "Failed to bind to any listen interfaces, please adjust your configuration and try again.\n");
+		return EXIT_FAILURE;
+	}
+
 	printf("Idling main thread.\n");
 	while(!quit)
 	{
-// 		sleep(5);
 		ms->CheckConnection();
 		ProcessSockets();
 	}

@@ -49,11 +49,13 @@ void Socket::QueueData(socket_t client, void *data, size_t len)
 // These functions should not be called outside the multiplexing system
 int Socket::ReceiveData()
 {
+	dprintf("Weee! Multiplexer says we received some data!\n");
 	return 0;
 }
 
 int Socket::SendData()
 {
+	dprintf("Weeee! Multiplexer is ready to write some data!\n");
 	return 0;
 }
 

@@ -17,6 +17,11 @@ namespace yy {
 	class Parser;
 };
 
+typedef struct {
+	std::string bind;
+	short port;
+} listen_t;
+
 class Config
 {
 	const std::string filepath;
@@ -41,6 +46,7 @@ public:
 	std::string database;
 	std::string hostname;
 	short int mysqlport;
+	int mysqlretries;
 
 	// Port and interface to bind to
 	std::string bind;
@@ -49,9 +55,13 @@ public:
 	// Socket engine wait time (in seconds)
 	int readtimeout;
 
+	// Listen blocks
+	std::vector<listen_t*> listenblocks;
+
 	// Call an event.
 	EventDispatcher ConfigEvents;
 };
 
 
 extern Config *c;
+

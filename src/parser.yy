@@ -35,6 +35,8 @@
 
 	// Temporary for debug reasons.
 	#include "tinyformat.h"
+
+	listen_t *curlisten;
 %}
 
 %union
@@ -63,6 +65,7 @@
 %token SERVER
 %token RETRIES
 %token IDLEFREQ
+%token LISTEN
 
 
 /*%token SERVER
@@ -82,26 +85,10 @@
 
 conf: | conf conf_items;
 
-conf_items: server_entry | MySQL_entry | module_entry;
+conf_items: server_entry | MySQL_entry | module_entry | listen_entry;
 
 module_entry: MODULE
 {
-/*	conf_module_t *m = nmalloc(sizeof(conf_module_t));
-	m->path = NULL;
-	m->name = NULL;
-	curmod = m;
-
-	if (!config)
-	{
-		config = nmalloc(sizeof(config_t));
-		config->daemonize = -1;
-		config->readtimeout = 5;
-		config->fixpath = 1;
-		vec_init(&config->listenblocks);
-		vec_init(&config->moduleblocks);
-	}
-
-	vec_push(&config->moduleblocks, m);*/
 }
 '{' module_items '}';
 
@@ -113,15 +100,20 @@ MySQL_entry: MYSQL
 
 server_entry: SERVER
 {
-/*	config = nmalloc(sizeof(config_t));
-	// Defaults
-	config->daemonize = 1;
-	config->readtimeout = 5;
-	config->fixpath = 1;
-	vec_init(&config->listenblocks);
-	vec_init(&config->moduleblocks);*/
 }
 '{' server_items '}';
+
+
+listen_entry: LISTEN
+{
+	tfm::printf(" Listen block:\n");
+	curlisten = new listen_t();
+	// Default is to bind to all interfaces on port 2970.
+	curlisten->bind = "0.0.0.0";
+	curlisten->port = 2970;
+	ctx->listenblocks.push_back(curlisten);
+}
+'{' listen_items ')';
 
 server_items: | server_item server_items;
 server_item: server_daemonize | server_pidfile | server_port | server_bind | server_idlefreq;
@@ -132,7 +124,8 @@ MySQL_item: MySQL_host | MySQL_port | MySQL_username | MySQL_database | MySQL_pa
 module_items: | module_item module_items;
 module_item: module_path | module_name;
 
-
+listen_items: | listen_item listen_items;
+listen_item: listen_bind | listen_port;
 
 
 module_path: PATH '=' STR ';'
@@ -146,6 +139,19 @@ module_name: NAME '=' STR ';'
 };
 
 
+
+
+listen_bind: BIND '=' STR ';'
+{
+	curlisten->bind = yyla.value.sval;
+	tfm::printf("  bind: %s\n", curlisten->bind);
+};
+
+listen_port: PORT '=' CINT ';'
+{
+	curlisten->port = yyla.value.ival;
+	tfm::printf("  port: %d\n", curlisten->port);
+};
 
 
 

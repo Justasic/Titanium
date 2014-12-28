@@ -1,6 +1,7 @@
 #include "MySQL.h"
 #include "tinyformat.h"
 #include "misc.h"
+#include "Config.h"
 
 
 MySQL::MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, short p = 0) :
@@ -77,7 +78,7 @@ bool MySQL::CheckConnection()
 	{
 tryconnect:
 		// Retry 5 times to connect to the server, return true if we do
-		for (int i = 0; i < 5; ++i)
+		for (int i = 0; i < c->mysqlretries; ++i)
 			if (this->DoConnection())
 				return true;
 		// otherwise we fall through and failed to connect 5 times so return false.
