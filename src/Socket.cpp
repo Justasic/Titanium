@@ -6,13 +6,12 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <sys/sysinfo.h>
-#include <sys/utsname.h>
 
 #include "Socket.h"
 #include "multiplexer.h"
 #include "tinyformat.h"
 #include "misc.h"
+#include "Process.h"
 
 std::vector<Socket*> Socket::sockets;
 
@@ -53,18 +52,11 @@ int Socket::ReceiveData()
 {
 	dprintf("Weee! Multiplexer says we received some data!\n");
 
-	typedef struct information_s {
-		struct sysinfo s;
-		struct utsname u;
-		time_t timestamp;
-	} information_t;
-
-
 	socket_t ss;
 	socklen_t addrlen = sizeof(ss);
-	uint8_t buf[512];
+	uint8_t *buf = new uint8_t[512];
 	errno = 0;
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, 512);
 	size_t recvlen = recvfrom(this->fd, buf, 512, 0, &ss.sa, &addrlen);
 	// The kernel either told us that we need to read again
 	// or we received a signal and are continuing from where
@@ -78,22 +70,15 @@ int Socket::ReceiveData()
 	}
 
 	dprintf("Received %lu bytes\n", recvlen);
+// 	dprintf("Data: \"%s\"\n", (char*)buf);
 
-	information_t i;
-	information_t *info = &i;
-	memcpy(info, buf, 516);
-
-
-	printf("%ld seconds uptime\n", info->timestamp - info->s.uptime);
-	printf("%lu %lu %lu load times\n", info->s.loads[0], info->s.loads[1], info->s.loads[2]);
-	printf("%d processes running\n", info->s.procs);
-
-	printf("Hostname: %s\n", info->u.nodename);
-	printf("Architecture: %s\n", info->u.machine);
-	printf("OS: %s %s\n", info->u.sysname, info->u.release);
+	// Process elsewhere.
+	ProcessUDP(this, ss, buf, recvlen);
 
 	// Tell the multiplexer we're done.
 	SetSocketStatus(this, SF_READABLE);
+
+	delete[] buf;
 
 	return 0;
 }
