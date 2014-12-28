@@ -46,10 +46,10 @@ int AddToMultiplexer(socket_t *s)
 	return 0;
 }
 
-int RemoveFromMultiplexer(socket_t s)
+int RemoveFromMultiplexer(socket_t *s)
 {
-	FD_CLR(s.fd, &readfds);
-	FD_CLR(s.fd, &writefds);
+	FD_CLR(s->fd, &readfds);
+	FD_CLR(s->fd, &writefds);
 	maxfd--;
 	return 0;
 }
@@ -95,7 +95,7 @@ void ProcessSockets(void)
 	// Default read time
 	struct timeval seltv = { c->readtimeout, 0 };
 
-	dprintf("Entering select\n");
+	printf("Entering select\n");
 
 	int ret = select(maxfd + 1, &read, &write, &error, &seltv);
 
@@ -103,35 +103,30 @@ void ProcessSockets(void)
 		fprintf(stderr, "Failed to select(): %s\n", strerror(errno));
 	else if (ret)
 	{
-		int idx = 0;
-		socket_t s;
-		vec_foreach(&socketpool, s, idx)
+		for (auto it : sockets)
 		{
-			int has_read = FD_ISSET(s.fd, &read);
-			int has_write = FD_ISSET(s.fd, &write);
-			int has_error = FD_ISSET(s.fd, &error);
-
-			if (has_error || has_read || has_write)
-				// Call our event.
-				CallEvent(EV_SOCKETACTIVITY, &s);
+			int has_read = FD_ISSET(it->fd, &read);
+			int has_write = FD_ISSET(it->fd, &write);
+			int has_error = FD_ISSET(it->fd, &error);
 
 			if (has_error)
 			{
-				dprintf("select() error reading socket %d, destroying.\n", s.fd);
-				DestroySocket(s, 1);
+				printf("select() error reading socket %d, destroying.\n", it->fd);
+				delete it;
 				continue;
 			}
 
-			if (has_read && ReceivePackets(s) == -1)
+			if (has_read && s->ReceiveData() == -1)
 			{
-				dprintf("Destorying socket due to receive failure!\n");
-				DestroySocket(s, 1);
+				printf("Destorying socket due to receive failure!\n");
+				delete it;
+				continue;
 			}
 
-			if (has_write && SendPackets(s) == -1)
+			if (has_write && s->SendData() == -1)
 			{
-				dprintf("Destorying socket due to send failure!\n");
-				DestroySocket(s, 1);
+				printf("Destorying socket due to send failure!\n");
+				delete it;
 			}
 		}
 	}

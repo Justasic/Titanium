@@ -145,6 +145,31 @@ check_cxx_source_compiles("
 int main() { const char *abc = \"abc\"; char *str = strndupa(abc, 5); return 0; }
 " HAVE_STRNDUPA)
 
+
+# Find our multiplexer, choose the best one possible.
+if (HAVE_SYS_EPOLL_H)
+    list(APPEND SOURCE_FILES src/multiplexers/multiplexer_epoll.cpp)
+else (HAVE_SYS_EPOLL_H)
+    # Okay, so this system doesn't have epoll, let's try kqueue.
+    if (HAVE_KQUEUE)
+        list(APPEND SOURCE_FILES src/multiplexers/multiplexer_kqueue.cpp)
+    else (HAVE_KQUEUE)
+        # Okay, we don't have kqueue, lets try poll.
+        if (HAVE_POLL)
+            list(APPEND SOURCE_FILES src/multiplexers/multiplexer_poll.cpp)
+        else (HAVE_POLL)
+            # alright, we'll give in and try select.
+            if (HAVE_SELECT)
+                list(APPEND SOURCE_FILES src/multiplexers/multiplexer_select.cpp)
+            else (HAVE_SELECT)
+                # wtf? are we on MS-DOS?
+                message(FATAL_ERROR "Cannot find a compatible multiplexer for this platform, please file a bug.")
+            endif (HAVE_SELECT)
+        endif(HAVE_POLL)
+    endif(HAVE_KQUEUE)
+endif (HAVE_SYS_EPOLL_H)
+
+
 find_package(FLEX REQUIRED)
 find_package(BISON REQUIRED)
 find_package(MySQL REQUIRED)

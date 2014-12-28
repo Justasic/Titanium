@@ -13,8 +13,7 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #pragma once
-#include "vec.h"
-#include "socket.h"
+#include "Socket.h"
 
 // Multiplexer socket statuses
 enum
@@ -23,9 +22,9 @@ enum
 	SF_READABLE = 2
 };
 
-extern int AddToMultiplexer(socket_t *s);
-extern int RemoveFromMultiplexer(socket_t s);
-extern int SetSocketStatus(socket_t *s, int status);
+extern int AddToMultiplexer(Socket *s);
+extern int RemoveFromMultiplexer(Socket *s);
+extern int SetSocketStatus(Socket *s, int status);
 
 extern int InitializeMultiplexer(void);
 extern int ShutdownMultiplexer(void);

@@ -37,8 +37,6 @@
 # include <unistd.h>
 #endif
 
-extern Config *c;
-
 typedef struct pollfd poll_t;
 static std::vector<poll_t> events;
 
@@ -57,11 +55,11 @@ int AddToMultiplexer(socket_t *s)
 	return 0;
 }
 
-int RemoveFromMultiplexer(socket_t s)
+int RemoveFromMultiplexer(socket_t *s)
 {
 	for (std::vector<poll_t>::iterator it = events.begin(), it_end = events.end(); it != it_end; ++it)
 	{
-		if ((*it).fd == s.fd)
+		if ((*it).fd == s->fd)
 		{
 			events.erase(it);
 			return 0;
@@ -121,37 +119,38 @@ void ProcessSockets(void)
 		else // Nothing to do, move on.
 			continue;
 
-		socket_t s;
-		if (FindSocket(ev->fd, &s) == -1)
+		Socket *s = FindSocket(ev->data.fd);
+		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->fd);
 			// We don't know what socket this is. Someone added something
 			// stupid somewhere so shut this shit down now.
 			// We have to create a temporary socket_t object to remove it
 			// from the multiplexer, then we can close it.
-			socket_t tmp = { ev->fd, 0, 0, 0, 0 };
-			RemoveFromMultiplexer(tmp);
-			close(ev->fd);
+// 			socket_t tmp = { ev->fd, 0, 0, 0, 0 };
+// 			RemoveFromMultiplexer(tmp);
+// 			close(ev->fd);
 			continue;
 // 		}
 
 		if (ev->revents & (POLLERR | POLLRDHUP))
 		{
-			dprintf("poll error reading socket %d, destroying.\n", s.fd);
-			DestroySocket(s, 1);
+			dprintf("poll error reading socket %d, destroying.\n", s->fd);
+			delete s;
 			continue;
 		}
 
-		if (ev->revents & POLLIN && ReceivePackets(s) == -1)
+		if (ev->revents & POLLIN && s->ReceiveData() == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
-			DestroySocket(s, 1);
+			delete s;
+			continue;
 		}
 
-		if (ev->revents & POLLOUT && SendPackets(s) == -1)
+		if (ev->revents & POLLOUT && s->SendData() == -1)
 		{
 			dprintf("Destorying socket due to send failure!\n");
-			DestroySocket(s, 1);
+			delete s;
 		}
 	}
 }

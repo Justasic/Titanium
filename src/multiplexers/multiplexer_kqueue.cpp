@@ -21,6 +21,7 @@
 #include "multiplexer.h"
 #include "misc.h"
 #include "Config.h"
+#include "Socket.h"
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -52,20 +53,20 @@ static inline kevent_t *GetChangeEvent(void)
 // 	return &(changed.data[changed.length++]);
 }
 
-int AddToMultiplexer(socket_t *s)
+int AddToMultiplexer(Socket *s)
 {
 	// Set the socket as readable and add it to kqueue
 	return SetSocketStatus(s, SF_READABLE);
 }
 
-int RemoveFromMultiplexer(socket_t s)
+int RemoveFromMultiplexer(Socket *s)
 {
 	// It is easier to just set the socket status to 0, the if statements
 	// in the next func below will take care of everything.
-	return SetSocketStatus(&s, 0);
+	return SetSocketStatus(s, 0);
 }
 
-int SetSocketStatus(socket_t *s, int status)
+int SetSocketStatus(Socket *s, int status)
 {
 	assert(s);
 
@@ -151,42 +152,40 @@ void ProcessSockets(void)
 		if (ev->flags & EV_ERROR)
 			continue;
 
-		socket_t s;
-		if (FindSocket(ev->ident, &s) == -1)
+		Socket *s FindSocket(ev->data.fd);
+		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->ident);
 			// We don't know what socket this is. Someone added something
 			// stupid somewhere so shut this shit down now.
-			// We have to create a temporary socket_t object to remove it
+			// We have to create a temporary Socket object to remove it
 			// from the multiplexer, then we can close it.
-			socket_t tmp = { ev->data.fd, 0, 0, 0, 0 };
-			RemoveFromMultiplexer(tmp);
-			close(ev->ident);
+// 			Socket tmp = { ev->data.fd, 0, 0, 0, 0 };
+// 			RemoveFromMultiplexer(tmp);
+// 			close(ev->ident);
 			continue;
 		}
 
-		// Call our event.
-		CallEvent(EV_SOCKETACTIVITY, &s);
-
 		if (ev->flags & EV_EOF)
 		{
-			dprintf("Kqueue error reading socket %d, destroying.\n", s.fd);
-			DestroySocket(s, 1);
+			dprintf("Kqueue error reading socket %d, destroying.\n", s->fd);
+			delete s;
 			continue;
 		}
 
 		// process socket read events.
-		if (ev->filter & EVFILT_READ && ReceivePackets(s) == -1)
+		if (ev->filter & EVFILT_READ && s->ReceiveData() == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
-			DestroySocket(s, 1);
+			delete s;
+			continue;
 		}
 
 		// Process socket write events
-		if (ev->filter & EVFILT_WRITE && SendPackets(s) == -1)
+		if (ev->filter & EVFILT_WRITE && s->SendData() == -1)
 		{
 			dprintf("Destorying socket due to send failure!\n");
-			DestroySocket(s, 1);
+			delete s;
 		}
 	}
 }

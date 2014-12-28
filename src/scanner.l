@@ -41,6 +41,7 @@
 (?i:module)           { return token::MODULE; }
 (?i:server)           { return token::SERVER; }
 (?i:retries)          { return token::RETRIES; }
+(?i:idlefreq)         { return token::IDLEFREQ; }
 
  /* Ignore white space */
 [ \t\n]               { }

@@ -21,6 +21,7 @@
 #include "multiplexer.h"
 #include "misc.h"
 #include "Config.h"
+#include "Socket.h"
 
 #include <sys/epoll.h>
 #include <sys/types.h>
@@ -38,51 +39,51 @@ typedef struct epoll_event epoll_t;
 static int EpollHandle = -1;
 static std::vector<epoll_t> events;
 
-int AddToMultiplexer(socket_t *s)
+int AddToMultiplexer(Socket *s)
 {
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
 
 	ev.events = EPOLLIN;
-	ev.data.fd = s->fd;
+	ev.data.fd = s->GetFD();
 	s->flags = SF_READABLE;
 
-	if (epoll_ctl(EpollHandle, EPOLL_CTL_ADD, s->fd, &ev) == -1)
+	if (epoll_ctl(EpollHandle, EPOLL_CTL_ADD, s->GetFD(), &ev) == -1)
 	{
-		fprintf(stderr, "Unable to add fd %d from epoll: %s\n", s->fd, strerror(errno));
+		fprintf(stderr, "Unable to add fd %d from epoll: %s\n", s->GetFD(), strerror(errno));
 		return -1;
 	}
 
 	return 0;
 }
 
-int RemoveFromMultiplexer(socket_t s)
+int RemoveFromMultiplexer(Socket *s)
 {
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
-	ev.data.fd = s.fd;
+	ev.data.fd = s->GetFD();
 
 	if (epoll_ctl(EpollHandle, EPOLL_CTL_DEL, ev.data.fd, &ev) == -1)
 	{
-		fprintf(stderr, "Unable to remove fd %d from epoll: %s\n", s.fd, strerror(errno));
+		fprintf(stderr, "Unable to remove fd %d from epoll: %s\n", s->GetFD(), strerror(errno));
 		return -1;
 	}
 
 	return 0;
 }
 
-int SetSocketStatus(socket_t *s, int status)
+int SetSocketStatus(Socket *s, int status)
 {
 	epoll_t ev;
 	memset(&ev, 0, sizeof(epoll_t));
 
 	ev.events = (status & SF_READABLE ? EPOLLIN : 0) | (status & SF_WRITABLE ? EPOLLOUT : 0);
-	ev.data.fd = s->fd;
+	ev.data.fd = s->GetFD();
 	s->flags = status;
 
 	if (epoll_ctl(EpollHandle, EPOLL_CTL_MOD, ev.data.fd, &ev) == -1)
 	{
-		fprintf(stderr, "Unable to set fd %d from epoll: %s\n", s->fd, strerror(errno));
+		fprintf(stderr, "Unable to set fd %d from epoll: %s\n", s->GetFD(), strerror(errno));
 		return -1;
 	}
 	return 0;
@@ -114,10 +115,10 @@ int ShutdownMultiplexer(void)
 
 void ProcessSockets(void)
 {
-	if (socketpool.length >= events.capacity())
+	if (sockets.size() >= events.capacity())
 	{
 		dprintf("Reserving more space for events\n");
-		events.reserve(socketpool.length * 2);
+		events.reserve(sockets.size() * 2);
 	}
 
 	dprintf("Entering epoll_wait\n");
@@ -133,41 +134,41 @@ void ProcessSockets(void)
 
 	for (int i = 0; i < total; ++i)
 	{
-		epoll_t *ev = events.data()[i];
+		epoll_t *ev = &events.data()[i];
 
-		socket_t s;
-		if (FindSocket(ev->data.fd, &s) == -1)
+		Socket *s = FindSocket(ev->data.fd);
+		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->data.fd);
 			// We don't know what socket this is. Someone added something
 			// stupid somewhere so shut this shit down now.
-			// We have to create a temporary socket_t object to remove it
+			// We have to create a temporary Socket object to remove it
 			// from the multiplexer, then we can close it.
-			socket_t tmp = { ev->data.fd, 0, 0, 0, 0 };
-			RemoveFromMultiplexer(tmp);
-			close(ev->data.fd);
+// 			Socket tmp = { ev->data.fd, 0, 0, 0, 0 };
+// 			RemoveFromMultiplexer(tmp);
+// 			close(ev->data.fd);
 			continue;
 		}
 
 		if (ev->events & (EPOLLHUP | EPOLLERR))
 		{
-			dprintf("Epoll error reading socket %d, destroying.\n", s.fd);
-			DestroySocket(s, 1);
+			dprintf("Epoll error reading socket %d, destroying.\n", s->GetFD());
+			delete s;
 			continue;
 		}
 
 		// process socket read events.
-		if (ev->events & EPOLLIN && ReceivePackets(s) == -1)
+		if (ev->events & EPOLLIN && s->ReceiveData() == -1)
 		{
 			dprintf("Destorying socket due to receive failure!\n");
-			DestroySocket(s, 1);
+			delete s;
 		}
 
 		// Process socket write events
-		if (ev->events & EPOLLOUT && SendPackets(s) == -1)
+		if (ev->events & EPOLLOUT && s->SendData() == -1)
 		{
 			dprintf("Destorying socket due to send failure!\n");
-			DestroySocket(s, 1);
+			delete s;
 		}
 	}
 }

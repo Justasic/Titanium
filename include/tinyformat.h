@@ -960,6 +960,13 @@ void printfln(const char* fmt, const Args&... args)
     std::cout << '\n';
 }
 
+template<typename... Args>
+int fprintf(FILE *stream, const char *fmt, const Args&... args)
+{
+	std::string buf = format(fmt, args...);
+	return fwrite(buf.c_str(), 1, buf.size(), stream);
+}
+
 
 #else // C++98 version
 

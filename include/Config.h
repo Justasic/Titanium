@@ -46,6 +46,12 @@ public:
 	std::string bind;
 	short int port;
 
+	// Socket engine wait time (in seconds)
+	int readtimeout;
+
 	// Call an event.
 	EventDispatcher ConfigEvents;
 };
+
+
+extern Config *c;
