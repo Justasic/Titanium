@@ -145,7 +145,6 @@ check_cxx_source_compiles("
 int main() { const char *abc = \"abc\"; char *str = strndupa(abc, 5); return 0; }
 " HAVE_STRNDUPA)
 
-
 # Find our multiplexer, choose the best one possible.
 if (HAVE_SYS_EPOLL_H)
     list(APPEND SOURCE_FILES src/multiplexers/multiplexer_epoll.cpp)

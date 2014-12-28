@@ -967,7 +967,6 @@ int fprintf(FILE *stream, const char *fmt, const Args&... args)
 	return fwrite(buf.c_str(), 1, buf.size(), stream);
 }
 
-
 #else // C++98 version
 
 inline void format(std::ostream& out, const char* fmt)

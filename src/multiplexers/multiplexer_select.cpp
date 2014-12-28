@@ -38,37 +38,37 @@
 static fd_set readfds, writefds;
 static int maxfd = 0;
 
-int AddToMultiplexer(socket_t *s)
+int AddToMultiplexer(Socket *s)
 {
-	FD_SET(s->fd, &readfds);
-	maxfd = s->fd;
+	FD_SET(s->GetFD(), &readfds);
+	maxfd = s->GetFD();
 	s->flags = SF_READABLE;
 	return 0;
 }
 
-int RemoveFromMultiplexer(socket_t *s)
+int RemoveFromMultiplexer(Socket *s)
 {
-	FD_CLR(s->fd, &readfds);
-	FD_CLR(s->fd, &writefds);
+	FD_CLR(s->GetFD(), &readfds);
+	FD_CLR(s->GetFD(), &writefds);
 	maxfd--;
 	return 0;
 }
 
-int SetSocketStatus(socket_t *s, int status)
+int SetSocketStatus(Socket *s, int status)
 {
 	assert(s);
 
 	if (status & SF_READABLE && !(s->flags & SF_READABLE))
-		FD_SET(s->fd, &readfds);
+		FD_SET(s->GetFD(), &readfds);
 
 	if (!(status & SF_READABLE) && s->flags & SF_READABLE)
-		FD_CLR(s->fd, &writefds);
+		FD_CLR(s->GetFD(), &writefds);
 
 	if (status & SF_WRITABLE && !(s->flags & SF_WRITABLE))
-		FD_SET(s->fd, &writefds);
+		FD_SET(s->GetFD(), &writefds);
 
 	if (!(status & SF_WRITABLE) && s->flags & SF_WRITABLE)
-		FD_CLR(s->fd, &writefds);
+		FD_CLR(s->GetFD(), &writefds);
 
 	s->flags = status;
 
@@ -103,27 +103,27 @@ void ProcessSockets(void)
 		fprintf(stderr, "Failed to select(): %s\n", strerror(errno));
 	else if (ret)
 	{
-		for (auto it : sockets)
+		for (auto it : Socket::sockets)
 		{
-			int has_read = FD_ISSET(it->fd, &read);
-			int has_write = FD_ISSET(it->fd, &write);
-			int has_error = FD_ISSET(it->fd, &error);
+			int has_read = FD_ISSET(it->GetFD(), &read);
+			int has_write = FD_ISSET(it->GetFD(), &write);
+			int has_error = FD_ISSET(it->GetFD(), &error);
 
 			if (has_error)
 			{
-				printf("select() error reading socket %d, destroying.\n", it->fd);
+				printf("select() error reading socket %d, destroying.\n", it->GetFD());
 				delete it;
 				continue;
 			}
 
-			if (has_read && s->ReceiveData() == -1)
+			if (has_read && it->ReceiveData() == -1)
 			{
 				printf("Destorying socket due to receive failure!\n");
 				delete it;
 				continue;
 			}
 
-			if (has_write && s->SendData() == -1)
+			if (has_write && it->SendData() == -1)
 			{
 				printf("Destorying socket due to send failure!\n");
 				delete it;

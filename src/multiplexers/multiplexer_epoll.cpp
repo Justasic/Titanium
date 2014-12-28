@@ -115,10 +115,10 @@ int ShutdownMultiplexer(void)
 
 void ProcessSockets(void)
 {
-	if (sockets.size() >= events.capacity())
+	if (Socket::sockets.size() >= events.capacity())
 	{
 		dprintf("Reserving more space for events\n");
-		events.reserve(sockets.size() * 2);
+		events.reserve(Socket::sockets.size() * 2);
 	}
 
 	dprintf("Entering epoll_wait\n");
@@ -136,7 +136,7 @@ void ProcessSockets(void)
 	{
 		epoll_t *ev = &events[i];
 
-		Socket *s = FindSocket(ev->data.fd);
+		Socket *s = Socket::FindSocket(ev->data.fd);
 		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->data.fd);
@@ -144,9 +144,7 @@ void ProcessSockets(void)
 			// stupid somewhere so shut this shit down now.
 			// We have to create a temporary Socket object to remove it
 			// from the multiplexer, then we can close it.
-// 			Socket tmp = { ev->data.fd, 0, 0, 0, 0 };
-// 			RemoveFromMultiplexer(tmp);
-// 			close(ev->data.fd);
+			Socket(ev->data.fd, socket_t());
 			continue;
 		}
 

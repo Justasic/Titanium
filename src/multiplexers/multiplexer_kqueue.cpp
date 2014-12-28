@@ -75,25 +75,25 @@ int SetSocketStatus(Socket *s, int status)
 	if (status & SF_READABLE && !(s->flags & SF_READABLE))
 	{
 		event = GetChangeEvent();
-		EV_SET(event, s->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+		EV_SET(event, s->GetFD(), EVFILT_READ, EV_ADD, 0, 0, NULL);
 	}
 
 	if (!(status & SF_READABLE) && s->flags & SF_READABLE)
 	{
 		event = GetChangeEvent();
-		EV_SET(event, s->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+		EV_SET(event, s->GetFD(), EVFILT_READ, EV_DELETE, 0, 0, NULL);
 	}
 
 	if (status & SF_WRITABLE && !(s->flags & SF_WRITABLE))
 	{
 		event = GetChangeEvent();
-		EV_SET(event, s->fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
+		EV_SET(event, s->GetFD(), EVFILT_WRITE, EV_ADD, 0, 0, NULL);
 	}
 
 	if (!(status & SF_WRITABLE) && s->flags & SF_WRITABLE)
 	{
 		event = GetChangeEvent();
-		EV_SET(event, s->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+		EV_SET(event, s->GetFD(), EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
 	}
 
 	s->flags = status;
@@ -128,8 +128,11 @@ int ShutdownMultiplexer(void)
 
 void ProcessSockets(void)
 {
-	if (socketpool.length > events.capacity())
-		events.reserve(socketpool.length * 2);
+	if (Socket::sockets.size() >= events.capacity())
+	{
+		dprintf("Reserving more space for events\n");
+		events.reserve(Socket::sockets.size() * 2);
+	}
 
 	dprintf("Entering kevent\n");
 
@@ -152,7 +155,7 @@ void ProcessSockets(void)
 		if (ev->flags & EV_ERROR)
 			continue;
 
-		Socket *s FindSocket(ev->data.fd);
+		Socket *s Socket::FindSocket(ev->data.fd);
 		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->ident);
@@ -160,15 +163,13 @@ void ProcessSockets(void)
 			// stupid somewhere so shut this shit down now.
 			// We have to create a temporary Socket object to remove it
 			// from the multiplexer, then we can close it.
-// 			Socket tmp = { ev->data.fd, 0, 0, 0, 0 };
-// 			RemoveFromMultiplexer(tmp);
-// 			close(ev->ident);
+			Socket(ev->data.fd, socket_t());
 			continue;
 		}
 
 		if (ev->flags & EV_EOF)
 		{
-			dprintf("Kqueue error reading socket %d, destroying.\n", s->fd);
+			dprintf("Kqueue error reading socket %d, destroying.\n", s->GetFD());
 			delete s;
 			continue;
 		}

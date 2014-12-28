@@ -40,12 +40,12 @@
 typedef struct pollfd poll_t;
 static std::vector<poll_t> events;
 
-int AddToMultiplexer(socket_t *s)
+int AddToMultiplexer(Socket *s)
 {
 	poll_t ev;
 	memset(&ev, 0, sizeof(poll_t));
 
-	ev.fd = s->fd;
+	ev.fd = s->GetFD();
 	ev.events = POLLIN;
 
 	s->flags = SF_READABLE;
@@ -55,11 +55,11 @@ int AddToMultiplexer(socket_t *s)
 	return 0;
 }
 
-int RemoveFromMultiplexer(socket_t *s)
+int RemoveFromMultiplexer(Socket *s)
 {
 	for (std::vector<poll_t>::iterator it = events.begin(), it_end = events.end(); it != it_end; ++it)
 	{
-		if ((*it).fd == s->fd)
+		if ((*it).fd == s->GetFD())
 		{
 			events.erase(it);
 			return 0;
@@ -69,11 +69,11 @@ int RemoveFromMultiplexer(socket_t *s)
 	return -1;
 }
 
-int SetSocketStatus(socket_t *s, int status)
+int SetSocketStatus(Socket *s, int status)
 {
 	for (auto it : events)
 	{
-		if (it.fd == s->fd)
+		if (it.fd == s->GetFD())
 		{
 			poll_t *ev = &it;
 			ev->events = (status & SF_READABLE ? POLLIN : 0) | (status & SF_WRITABLE ? POLLOUT : 0);
@@ -119,7 +119,7 @@ void ProcessSockets(void)
 		else // Nothing to do, move on.
 			continue;
 
-		Socket *s = FindSocket(ev->data.fd);
+		Socket *s = Socket::FindSocket(ev->fd);
 		if (!s)
 		{
 			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->fd);
@@ -127,15 +127,13 @@ void ProcessSockets(void)
 			// stupid somewhere so shut this shit down now.
 			// We have to create a temporary socket_t object to remove it
 			// from the multiplexer, then we can close it.
-// 			socket_t tmp = { ev->fd, 0, 0, 0, 0 };
-// 			RemoveFromMultiplexer(tmp);
-// 			close(ev->fd);
+			Socket(ev->fd, socket_t());
 			continue;
-// 		}
+		}
 
 		if (ev->revents & (POLLERR | POLLRDHUP))
 		{
-			dprintf("poll error reading socket %d, destroying.\n", s->fd);
+			dprintf("poll error reading socket %d, destroying.\n", s->GetFD());
 			delete s;
 			continue;
 		}
