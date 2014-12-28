@@ -48,6 +48,12 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				printf("Architecture: %s\n", info->u.machine);
 				printf("OS: %s %s\n", info->u.sysname, info->u.release);
 
+				if (std::string(info->u.nodename).empty())
+				{
+						printf("This host is corrupt, ignoring.\n");
+						goto end;
+				}
+
 				struct timeval tm;
 				gettimeofday(&tm, NULL);
 
@@ -92,6 +98,8 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				{
 					printf("MySQL error: %s\n", e.what());
 				}
+
+end:
 
 				// Remove ourselves from the vector.
 				clients.erase(it);
