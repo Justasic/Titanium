@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include "Config.h"
+#include "misc.h"
 
 
 // Needed to interact with flex/bison
@@ -24,15 +25,26 @@ int Config::Parse()
 {
 	// Call the EventDispatcher class here to announce we're about to parse a file.
 	//ConfigEvents.CallVoidEvent("OnPreParse", this, this->filepath);
-	yyin = fopen(this->filepath.c_str(), "r");
+
+    char *path = realpath(this->filepath.c_str(), nullptr);
+    if (!path)
+    {
+        fprintf(stderr, "Failed to resolve path \"%s\": %s\n", this->filepath.c_str(), strerror(errno));
+        return -1;
+    }
+
+    dprintf("Reading config from \"%s\"\n", path);
+
+	yyin = fopen(path, "r");
 	if (!yyin)
 	{
-		fprintf(stderr, "Failed to open file \"%s\"\n", this->filepath.c_str());
+		fprintf(stderr, "Failed to open file \"%s\"\n", path);
 		return -1;
 	}
 	int ret = this->p->parse();
 	fclose(yyin);
 	yyin = nullptr;
+    free(path);
 	return ret;
 }
 
