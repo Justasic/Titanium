@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <sys/sysinfo.h>
 #include <sys/utsname.h>
+#include <sys/time.h>
 #include <time.h>
 #include <errno.h>
 #include <getopt.h>
@@ -27,7 +28,7 @@ char *ipaddress = NULL, *pidfile = NULL;
 typedef struct information_s {
 	sysinfo_t s;
 	utsname_t u;
-	time_t timestamp;
+	struct timeval tm;
 } information_t;
 
 void HandleSignals(int sig)
@@ -64,7 +65,7 @@ fail:
 	printf("Architecture: %s\n", info->u.machine);
 	printf("OS: %s %s\n", info->u.sysname, info->u.release);
 
-	info->timestamp = time(NULL);
+	gettimeofday(&info->tm, NULL);
 
 	// Try to get release information
 	FILE *f = fopen("/etc/lsb-release", "r");
