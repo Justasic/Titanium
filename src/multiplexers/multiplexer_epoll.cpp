@@ -134,7 +134,7 @@ void ProcessSockets(void)
 
 	for (int i = 0; i < total; ++i)
 	{
-		epoll_t *ev = &events.data()[i];
+		epoll_t *ev = &events[i];
 
 		Socket *s = FindSocket(ev->data.fd);
 		if (!s)

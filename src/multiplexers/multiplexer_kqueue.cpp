@@ -147,7 +147,7 @@ void ProcessSockets(void)
 
 	for (int i = 0; i < total; ++i)
 	{
-		kevent_t *ev = events.data()[i];
+		kevent_t *ev = &events[i];
 
 		if (ev->flags & EV_ERROR)
 			continue;
