@@ -17,6 +17,7 @@
 #include "Config.h"
 #include "Request.h"
 #include "multiplexer.h"
+#include "misc.h"
 
 std::atomic_bool quit;
 
@@ -105,7 +106,7 @@ int main(int argc, char **argv)
 	quit = false;
 
 	// Parse our config before anything
-	Config conf("adkit.conf");
+	Config conf(GetCurrentDirectory() + "titanium.conf");
 	c = &conf;
 
 	printf("Config:\n");

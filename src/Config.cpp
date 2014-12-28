@@ -60,6 +60,8 @@ extern "C" void yyerror(const char *s)
 namespace yy {
 	void Parser::error(location const &loc, const std::string &str)
 	{
-		std::cerr << "Parse error at " << loc << ": " << str << std::endl;
+		std::cerr << "Parse error at " << loc.end.line << " or " << loc.begin.line <<
+		" (" << loc << "): " << str << std::endl;
+		std::cerr << "yylineno: " << yylineno << std::endl;
 	}
 };

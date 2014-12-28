@@ -11,3 +11,4 @@
 #endif
 
 extern char *SizeReduce(size_t size);
+extern std::string GetCurrentDirectory();

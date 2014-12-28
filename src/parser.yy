@@ -113,7 +113,7 @@ listen_entry: LISTEN
 	curlisten->port = 2970;
 	ctx->listenblocks.push_back(curlisten);
 }
-'{' listen_items ')';
+'{' listen_items '}';
 
 server_items: | server_item server_items;
 server_item: server_daemonize | server_pidfile | server_port | server_bind | server_idlefreq;

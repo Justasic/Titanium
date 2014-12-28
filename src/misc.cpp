@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstdlib>
+#include <string>
+#include <unistd.h>
 
 
 // Pointers returns by SizeReduce should be free()'d
@@ -24,5 +26,17 @@ char *SizeReduce(size_t size)
 
 	char *str = NULL;
 	asprintf(&str, "%zu %s", size, sz >= (sizeof(sizes) / sizeof(*sizes)) ? "(Hello Future!)" : sizes[sz]);
+	return str;
+}
+
+std::string GetCurrentDirectory()
+{
+	// The posix 2001 standard states that getcwd will call malloc() to
+	// allocate a string, this is great because I hate static buffers.
+	char *cwd = getcwd(NULL, 0);
+	std::string str = cwd;
+	str += "/";
+	free(cwd);
+
 	return str;
 }
