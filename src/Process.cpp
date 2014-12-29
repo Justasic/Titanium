@@ -79,16 +79,16 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 
 					if (id == 0)
 					{
-						query = tfm::format("INSERT INTO systems (uptime, processes, hostname, architecture, os, lastupdate) VALUES(%d, %d, '%s', '%s', '%s', FROM_UNIXTIME(%d))",
-							info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os, time(NULL));
+						query = tfm::format("INSERT INTO systems (uptime, processes, hostname, architecture, os) VALUES(%d, %d, '%s', '%s', '%s')",
+							info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os);
 					}
 					else
 					{
 						// Update the database entry.
-						query = tfm::format("INSERT INTO systems (id, uptime, processes, hostname, architecture, os, lastupdate)"
-						" VALUES(%d, %d, %d, '%s', '%s', '%s', FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE uptime=VALUES(uptime), processes=VALUES(processes),"
-						" architecture=VALUES(architecture), os=VALUES(os), lastupdate=VALUES(lastupdate)",
-							id, info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os, time(NULL));
+						query = tfm::format("INSERT INTO systems (id, uptime, processes, hostname, architecture, os)"
+						" VALUES(%d, %d, %d, '%s', '%s', '%s') ON DUPLICATE KEY UPDATE uptime=VALUES(uptime), processes=VALUES(processes),"
+						" architecture=VALUES(architecture), os=VALUES(os)",
+							id, info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os);
 					}
 
 					tfm::printf("Running query: \"%s\"\n", query);

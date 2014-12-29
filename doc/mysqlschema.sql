@@ -29,11 +29,10 @@ CREATE TABLE `systems` (
   `hostname` varchar(255) DEFAULT NULL,
   `architecture` varchar(255) DEFAULT NULL,
   `os` varchar(255) DEFAULT NULL,
-  `lastupdate` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `lastupdate` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -44,4 +43,4 @@ CREATE TABLE `systems` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2014-12-28 13:33:57
+-- Dump completed on 2014-12-29  1:58:19

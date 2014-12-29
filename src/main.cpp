@@ -44,9 +44,41 @@ void OpenListener(int sock_fd)
 		// Set the status to 200 OK
 		r.SetStatus(200);
 
-		// Call an event, this will later be used by plugins
-		// once they register with the handler.
-		//OnRequest.CallVoidEvent("REQUEST", r, r.GetParam("SCRIPT_NAME"));
+		tfm::printf("Request URI: %s\n", r.GetParam("REQUEST_URI"));
+
+		// WARNING: This is nasty and should be handled by nginx.
+		// don't use this XD
+		if (r.GetParam("REQUEST_URI") == "/base.css")
+		{
+			// we're assuming we're running from the build directory.
+			FILE *f = fopen("../static/css/base.css", "r");
+			if (!f)
+			{
+				// 404 the thing.
+				r.SetStatus(404);
+				goto finish;
+			}
+
+			r.Write("Content-Type: text/css\r\n\r\n");
+
+			uint8_t *buf = new uint8_t[1024];
+
+			fseek(f, 0, SEEK_END);
+			size_t size = ftell(f);
+			rewind(f);
+
+			// Write the data to the FastCGI stream.
+			while(size > 0)
+			{
+				size_t read = fread(buf, 1, 1024, f);
+				r.WriteData(buf, read);
+				size -= read;
+			}
+
+			delete[] buf;
+			// Finish the request.
+			goto finish;
+		}
 
 		// Form the HTTP header enough, nginx will fill in the rest.
 		r.Write("Content-Type: text/html\r\n\r\n");
@@ -54,12 +86,13 @@ void OpenListener(int sock_fd)
 		// Send our message
 
 		r.Write("<html><head>");
+		r.Write("<link rel=\"stylesheet\" type=\"text/css\" href=\"/base.css\"></link>");
 		r.Write("<title>Titanium Home</title>");
 		r.Write("</head>");
 		r.Write("<body>");
 
 		// Basic welcome.
-		r.Write("<center><h1>Welcome to Titanium!</h1></center>");
+		r.Write("<h2>Welcome to Titanium!</h2>");
 
 // 		r.Write("<h2>%s thread %d</h2>", r.GetParam("QUERY_STRING"), ThreadHandler::GetThreadID());
 
@@ -73,7 +106,7 @@ void OpenListener(int sock_fd)
 // 		r.Write("<br /><br /><br /><h2>MySQL Query:</h2><br />");
 
 		// Dump a table out.
-		r.Write("<table> \
+		r.Write("<table id=\"SysmonTable\"> \
 		<tr> \
 			<th>Hostname</th> \
 			<th>Processes</th> \
@@ -89,13 +122,33 @@ void OpenListener(int sock_fd)
 			MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("systems"));
 			for (auto it : mr.rows)
 			{
-
-				r.Write("<tr>");
-
 				time_t utime = strtol(it.second[1], NULL, 10);
-// 				tfm::pr
-// 				time_t snaptime = strtol()
 				std::string uptime = Duration(utime);
+
+				// Get the last time it was updated.
+				time_t lastupdate = 0;
+				try {
+					MySQL_Result res = ms->Query(tfm::format("SELECT UNIX_TIMESTAMP(lastupdate) from systems where id='%s'", it.second[0]));
+					if (!res.rows.empty())
+						lastupdate = strtol(res.rows[0][0], NULL, 10);
+				} catch (const MySQLException &e)
+				{
+					printf("MySQL error: %s\n", e.what());
+				}
+
+				// make sure we mark the status of the item first.
+				time_t timediff = lastupdate - time(NULL);
+				std::string classstr = "down";
+
+				// if the time difference is too great,
+				// mark it as being down or as it has yet to
+				// receive contact.
+				if (timediff > 60) // we've been down for a whole minute? fuck.
+					classstr = "down";
+				else if (timediff > 30) // we're down for 30 seconds, we could've just missed a packet.
+					classstr = "recent";
+
+				r.Write("<tr class=\"%s\">", classstr);
 
 				r.Write("<td>%s</td> \
 				<td>%s</td> \
@@ -106,12 +159,7 @@ void OpenListener(int sock_fd)
 					it.second[5], it.second[6]);
 
 				r.Write("</tr>");
-
-// 				for (int i = 0; i < mr.fields; ++i)
-// 					r.Write(" ", it.second[i] ? it.second[i] : "(NULL)");
-// 				r.Write("<br/>");
 			}
-// 			printf("%lu rows with %d columns\n", mr.rows.size(), mr.fields);
 		}
 		catch(const MySQLException &e)
 		{
@@ -119,10 +167,10 @@ void OpenListener(int sock_fd)
 			r.Write("<p>MySQL error: %s</p><br/>", e.what());
 		}
 
-
 		r.Write("</table></body>");
 
 		r.Write("</html>");
+finish:
 
 		FCGX_Finish_r(&request);
 	}

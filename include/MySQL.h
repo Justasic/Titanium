@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <mutex>
 
 
 // Mysql
@@ -53,6 +54,9 @@ class MySQL
 
 	// Used to connect to the database
 	bool DoConnection();
+
+	// Mutex so we can be thread-safe
+	std::mutex mtx;
 public:
 
 	MySQL(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, short);

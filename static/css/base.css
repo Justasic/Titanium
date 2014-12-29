@@ -1,0 +1,48 @@
+
+html {
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size: 80%;
+}
+
+body {
+	background-color: #ffffff;
+	color: #000000;
+	vertical-align: middle;
+}
+
+h2 {
+	margin: 0px auto;
+	text-align: center;
+}
+
+.up {
+	background-color: #77ff77;
+	color: #000000;
+}
+.down {
+	background-color: #ff5500;
+	color: #000000;
+}
+.recent {
+	background-color: #ffff00;
+	color: #000000;
+}
+
+#SysmonTable {
+	border: 3px solid #CCC;
+	border-collapse: collapse;
+	margin: 0px auto;
+	width: 0px auto;
+}
+
+#SysmonTable td, #SysmonTable th {
+	border 1px solid #CCC;
+	/*padding 10px;*/
+	text-align: center;
+}
+
+#SysmonTable td {
+	padding-right: 6px;
+	padding-left: 6px;
+}
+
