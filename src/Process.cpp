@@ -61,13 +61,11 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 
 				// Update the MySQL database with this big nasty query.
 				try {
-					// INSERT INTO table (id, name, age) VALUES(1, "A", 19) ON DUPLICATE KEY UPDATE name=VALUES(name), age=VALUES(age)
 					extern MySQL *ms;
-					std::string query;
-					std::string os = ms->Escape(tfm::format("%s %s", info->u.sysname, info->u.release));
+					std::string os = ms->Escape("%s %s", info->u.sysname, info->u.release);
 
 					// We gotta do it the old fashioned way. Find the id by our hostname then insert based on that.
-					MySQL_Result res = ms->Query(tfm::format("SELECT id FROM systems WHERE hostname='%s'", ms->Escape(info->u.nodename)));
+					MySQL_Result res = ms->Query("SELECT id FROM systems WHERE hostname='%s'", info->u.nodename);
 					int id = 0;
 					if (!res.rows.empty())
 					{
@@ -77,26 +75,15 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 					}
 
 					if (id == 0)
-					{
-						query = tfm::format("INSERT INTO systems (uptime, processes, hostname, architecture, os) VALUES(%d, %d, '%s', '%s', '%s')",
-							info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os);
-					}
+						ms->Query("INSERT INTO systems (uptime, processes, hostname, architecture, os) VALUES(%d, %d, '%s', '%s', '%s')",
+							info->s.uptime, info->s.procs, info->u.nodename, info->u.machine, os);
 					else
-					{
-						// Update the database entry.
-						query = tfm::format("INSERT INTO systems (id, uptime, processes, hostname, architecture, os)"
-						" VALUES(%d, %d, %d, '%s', '%s', '%s') ON DUPLICATE KEY UPDATE uptime=VALUES(uptime), processes=VALUES(processes),"
-						" architecture=VALUES(architecture), os=VALUES(os)",
-							id, info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os);
-					}
-
-					// Actually run the query
-					ms->Query(query);
+						ms->Query("UPDATE systems SET uptime=%d, processes=%d, hostname='%s', architecture='%s', os='%s' WHERE id=%d",
+										   info->s.uptime, info->s.procs, info->u.nodename, info->u.machine, os, id);
 				} catch (const MySQLException &e)
 				{
 					printf("MySQL error: %s\n", e.what());
 				}
-
 end:
 
 				// Remove ourselves from the vector.

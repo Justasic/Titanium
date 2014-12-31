@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdio>
 #include <iostream>
+#include <sstream>
 #include <cstdlib>
 #include <cstdint>
 #include <map>
@@ -8,6 +9,8 @@
 #include <string>
 #include <cstring>
 #include <mutex>
+
+#include "tinyformat.h"
 
 
 // Mysql
@@ -70,4 +73,32 @@ public:
 
 	// Escape a string
 	std::string Escape(const std::string &str);
+
+
+	// variadic functions which automatically escape args
+	// passed to them. We lose our ability to do types and
+	// fancy formatting but oh well.
+	template<typename... Args>
+	MySQL_Result Query(const std::string &query, const Args&... args)
+	{
+		// Stringify then escape each argument and pass it through the formatter
+		return this->Query(tfm::format(query.c_str(), this->Escape(stringify(args))...));
+	}
+
+	template<typename... Args>
+	std::string Escape(const std::string &str, const Args&... args)
+	{
+		return tfm::format(str.c_str(), this->Escape(stringify(args))...);
+	}
+
+private:
+
+	// private implementation of stringify
+	template<typename T>
+	std::string stringify(const T& t)
+	{
+		std::stringstream ss;
+		ss << t;
+		return ss.str();
+	}
 };

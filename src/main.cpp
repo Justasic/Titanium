@@ -128,7 +128,8 @@ void OpenListener(int sock_fd)
 				// Get the last time it was updated.
 				time_t lastupdate = 0;
 				try {
-					MySQL_Result res = ms->Query(tfm::format("SELECT UNIX_TIMESTAMP(lastupdate) from systems where id='%s'", it.second[0]));
+					//MySQL_Result res = ms->Query(tfm::format("SELECT UNIX_TIMESTAMP(lastupdate) from systems where id='%s'", it.second[0]));
+					MySQL_Result res = ms->Query("SELECT UNIX_TIMESTAMP(lastupdate) from systems where id='%s'", it.second[0]);
 					if (!res.rows.empty())
 						lastupdate = strtol(res.rows[0][0].c_str(), NULL, 10);
 				} catch (const MySQLException &e)
