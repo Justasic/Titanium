@@ -36,6 +36,9 @@ MySQL_Result MySQL::Query(const std::string &query)
 	MYSQL_ROW row;
 	int cnt = 0;
 
+	printf("***** EXECUTING QUERY ******\n\n");
+	tfm::printf("QUERY: \"%s\"\n\n", query);
+
 	// If we fail to connect, just return an empty query.
 	if (!this->con)
 		if (!this->CheckConnection())
@@ -63,14 +66,36 @@ MySQL_Result MySQL::Query(const std::string &query)
 	// Get total columns/fields w/e
 	res.fields = mysql_num_fields(result);
 
+	printf("Iteraing rows, we have %d columns to look at\n", res.fields);
 	// Loop through the MySQL objects and create the array for the query result
 	while ((row = mysql_fetch_row(result)))
-		res.rows[cnt++] = row;
+	{
+		// Create a vector of std::strings for rows the size of the number of columns we have
+		std::vector<std::string> vrow;
+		vrow.reserve(res.fields);
+
+		// Loop over those columns and push them into the vector
+		printf("Row[%d]: ", cnt);
+		for (int i = 0; i < res.fields; ++i)
+		{
+			std::string index = row[i];
+			vrow.push_back(index);
+			tfm::printf("%s ", index);
+		}
+		printf("\n");
+
+		// Add to our result
+		res.rows[cnt++] = vrow;
+	}
+
+	if (res.rows.empty())
+		printf("Empty set\n");
 
 	mysql_free_result(result);
 
 exit:
 
+	printf("\n***** QUERY COMPLETE ******\n");
 	this->mtx.unlock();
 
 	return res;

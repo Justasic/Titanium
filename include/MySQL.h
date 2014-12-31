@@ -16,7 +16,7 @@
 
 typedef struct MySQL_Result_s {
 	int fields;
-	std::map<int, MYSQL_ROW> rows;
+	std::map<int, std::vector<std::string>> rows;
 } MySQL_Result;
 
 class MySQLException : public std::exception

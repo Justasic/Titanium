@@ -114,15 +114,15 @@ void OpenListener(int sock_fd)
 			<th>Architecture</th> \
 			<th>Kernel</th> \
 			<th>Last Updated</th> \
+			<th>Down since</th> \
 		</tr>");
-//
-// 		printf("Running MySQL Query...\n");
-// 		// Test Query
+
+		// Run query for hosts
 		try {
 			MySQL_Result mr = ms->Query("SELECT * from " + ms->Escape("systems"));
 			for (auto it : mr.rows)
 			{
-				time_t utime = strtol(it.second[1], NULL, 10);
+				time_t utime = strtol(it.second[1].c_str(), NULL, 10);
 				std::string uptime = Duration(utime);
 
 				// Get the last time it was updated.
@@ -130,15 +130,18 @@ void OpenListener(int sock_fd)
 				try {
 					MySQL_Result res = ms->Query(tfm::format("SELECT UNIX_TIMESTAMP(lastupdate) from systems where id='%s'", it.second[0]));
 					if (!res.rows.empty())
-						lastupdate = strtol(res.rows[0][0], NULL, 10);
+						lastupdate = strtol(res.rows[0][0].c_str(), NULL, 10);
 				} catch (const MySQLException &e)
 				{
 					printf("MySQL error: %s\n", e.what());
 				}
 
+				printf("Last Updated: %lu\n", lastupdate);
+
 				// make sure we mark the status of the item first.
-				time_t timediff = lastupdate - time(NULL);
-				std::string classstr = "down";
+				time_t timediff = time(NULL) - lastupdate;
+				printf("Time difference: %lu\n", timediff);
+				std::string classstr = "up";
 
 				// if the time difference is too great,
 				// mark it as being down or as it has yet to
@@ -150,13 +153,20 @@ void OpenListener(int sock_fd)
 
 				r.Write("<tr class=\"%s\">", classstr);
 
+// 				for (int i = 0; i < mr.fields; ++i)
+// 				{
+// 					tfm::printf("%s ", it.second[i].empty() ? "(NULL)" : it.second[i]);
+// 				}
+// 				printf("\n");
+
 				r.Write("<td>%s</td> \
 				<td>%s</td> \
 				<td>%s</td> \
 				<td>%s</td> \
 				<td>%s</td> \
+				<td>%s</td> \
 				<td>%s</td>", it.second[3], it.second[2], uptime, it.second[4],
-					it.second[5], it.second[6]);
+					it.second[5], it.second[6], classstr == "up" ? "Never" : Duration(timediff));
 
 				r.Write("</tr>");
 			}

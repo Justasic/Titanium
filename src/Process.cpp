@@ -57,7 +57,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				struct timeval tm;
 				gettimeofday(&tm, NULL);
 
-				printf("%lu.%.6lu second difference\n\n", tm.tv_sec - info->tm.tv_sec, tm.tv_usec - info->tm.tv_usec);
+				printf("%lu.%.6lu second difference\n\n", info->tm.tv_sec - tm.tv_sec, info->tm.tv_usec - tm.tv_usec);
 
 				// Update the MySQL database with this big nasty query.
 				try {
@@ -71,11 +71,10 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 					int id = 0;
 					if (!res.rows.empty())
 					{
-						id = strtol(res.rows[0][0], NULL, 10);
+						id = strtol(res.rows[0][0].c_str(), NULL, 10);
 						if (errno == ERANGE)
 							id = 0;
 					}
-					printf("ID: %d\n", id);
 
 					if (id == 0)
 					{
@@ -91,7 +90,6 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 							id, info->s.uptime, info->s.procs, ms->Escape(info->u.nodename), ms->Escape(info->u.machine), os);
 					}
 
-					tfm::printf("Running query: \"%s\"\n", query);
 					// Actually run the query
 					ms->Query(query);
 				} catch (const MySQLException &e)
