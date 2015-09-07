@@ -25,11 +25,14 @@ char quit = 0;
 int verbose = 0, port = 2970;
 char *ipaddress = NULL, *pidfile = NULL;
 
-typedef struct information_s {
+typedef struct information2_s
+{
+	// CPU, RAM, Load time, Distro info, Uptime, Kernel Version, hard drive info,
+	// # of running processes, # of users, hostname, current time,
 	sysinfo_t s;
 	utsname_t u;
 	struct timeval tm;
-} information_t;
+} information2_t;
 
 void HandleSignals(int sig)
 {

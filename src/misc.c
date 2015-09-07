@@ -32,3 +32,45 @@ char *format_time(time_t time, const char *format)
 
 	return buffer;
 }*/
+
+///////////////////////////////////////////////////
+// Function: ReadEntireFile
+//
+// description:
+// Read an entire file into a memory buffer.
+// Useful for single-liners in the procfs.
+char *ReadEntireFile(const char *filepath, size_t *size)
+{
+	FILE *f = fopen(filepath, "r");
+
+	if(!f)
+		return NULL;
+
+	// Go to the end of the file
+	fseek(f, 0, SEEK_END);
+	// Get length, then go to the top
+	size_t length = ftell(f);
+	rewind(f);
+
+	// Create new memory buffer and read the entire file into the buffer
+	char *data = malloc(length);
+	size_t sz = fread(data, 1, length, f);
+
+	// Make sure we got all the file we want.
+	if (sz != length)
+	{
+		// If no, deallocate and return null.
+		free(data);
+		data = NULL;
+	}
+	else
+	{
+		// Copy file size data if we want it.
+		if (size)
+			*size = sz;
+	}
+
+	// Clean up and return.
+	close(f);
+	return data;
+}
