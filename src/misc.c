@@ -2,7 +2,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// Pointers returns by SizeReduce should be free()'d
+
+///////////////////////////////////////////////////
+// Function: SizeReduce
+//
+// description:
+// Returns the highest human-readable byte size
+// possible from the input number.
+// NOTE: Pointers returns by SizeReduce should be free()'d
 char *SizeReduce(size_t size)
 {
 	static const char *sizes[] = {

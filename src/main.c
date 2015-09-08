@@ -15,24 +15,12 @@
 #include <errno.h>
 #include <getopt.h>
 #include <signal.h>
-
-// Some typedefs to make things easier
-typedef struct sysinfo sysinfo_t;
-typedef struct utsname utsname_t;
+#include "socket.h"
 
 // Global variable on whether or not we're quitting
 char quit = 0;
 int verbose = 0, port = 2970;
-char *ipaddress = NULL, *pidfile = NULL;
-
-typedef struct information2_s
-{
-	// CPU, RAM, Load time, Distro info, Uptime, Kernel Version, hard drive info,
-	// # of running processes, # of users, hostname, current time,
-	sysinfo_t s;
-	utsname_t u;
-	struct timeval tm;
-} information2_t;
+char *pidfile = NULL;
 
 void HandleSignals(int sig)
 {
@@ -40,123 +28,6 @@ void HandleSignals(int sig)
 	quit = 1;
 	// Ignore the signal, we'll quit gracefully.
 	signal(sig, SIG_IGN);
-}
-
-void CollectInformation(information_t *info)
-{
-	// Get some basic system information right now
-	if (sysinfo(&info->s) != 0)
-	{
-fail:
-		fprintf(stderr, "Failed to get system information: %s\n", strerror(errno));
-		return;
-	}
-
-	// Print some basics.
-	printf("%ld seconds uptime\n", info->s.uptime);
-	printf("%lu %lu %lu load times\n", info->s.loads[0], info->s.loads[1], info->s.loads[2]);
-	printf("%d processes running\n", info->s.procs);
-	// 	printf("")
-
-	// TODO: Memory info and CPU percentage
-
-	// Get hostname and other info
-	if (uname(&info->u) != 0)
-		goto fail;
-
-	printf("Hostname: %s\n", info->u.nodename);
-	printf("Architecture: %s\n", info->u.machine);
-	printf("OS: %s %s\n", info->u.sysname, info->u.release);
-
-	gettimeofday(&info->tm, NULL);
-
-	// Try to get release information
-	FILE *f = fopen("/etc/lsb-release", "r");
-	if (!f && errno == EEXIST)
-	{
-		// skip.
-	}
-	else if (!f)
-	{
-		fprintf(stderr, "Failed to open file /etc/lsb-release: %s\n", strerror(errno));
-		return;
-	}
-	else
-	{
-		// get length of file
-		fseek(f, 0, SEEK_END);
-		size_t len = ftell(f);
-		rewind(f);
-
-		// Read entire file into memory then parse it.
-		char *file = malloc(len);
-		fread(file, sizeof(char), len, f);
-		fclose(f);
-		printf("DEBUG: file: \"%s\"\n", file);
-
-		free(file);
-	}
-}
-
-// We will send our info over this function. You write all info you must send to
-// the data pointer and give the length of the memory block to len. This function
-// will write the entirety of the memory block in chunks to the Titanium server
-// via 512-byte packets.
-void SendInformation(void *data, size_t len)
-{
-	int fd = 0;
-	// Simple type information so we can handle IPv4 and IPv6 easily
-	union
-	{
-		struct sockaddr_in in;
-		struct sockaddr_in6 in6;
-		struct sockaddr sa;
-	} saddr;
-
-	// are we IPv4 or IPv6? TODO: We will deal with hostname resolution later.
-	saddr.sa.sa_family = strstr(ipaddress, ":") != NULL ? AF_INET6 : AF_INET;
-
-	// Set the port
-	*(saddr.sa.sa_family == AF_INET ? &saddr.in.sin_port : &saddr.in6.sin6_port) = htons(port);
-
-	// Convert the IP address to binary so we can use it.
-	switch (inet_pton(saddr.sa.sa_family, ipaddress, (saddr.sa.sa_family == AF_INET ? &saddr.in.sin_addr : &saddr.in6.sin6_addr)))
-	{
-		case 1: // Success.
-			break;
-		case 0:
-			fprintf(stderr, "Invalid %s address: %s\n",
-				saddr.sa.sa_family == AF_INET ? "IPv4" : "IPv6", ipaddress);
-		default:
-			perror("inet_pton");
-			return;
-	}
-
-	// Create the UDP socket
-	if ((fd = socket(saddr.sa.sa_family, SOCK_DGRAM, 0)) < 0)
-	{
-		perror("Cannot create socket\n");
-		return;
-	}
-
-	// Send the UDP datagrams.
-	const uint8_t *ptr = (uint8_t*)data;
-	while (len > 0)
-	{
-		// Send a 512-byte block
-		if (len > 512)
-		{
-			sendto(fd, ptr, 512, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
-			ptr += 512;
-			len -= 512;
-		}
-		else    // we're under 512-bytes now, send the remainder.
-			len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
-
-	}
-
-	// Close the socket.
-	close(fd);
 }
 
 void WritePIDFile(const char *file)
@@ -243,19 +114,19 @@ int main (int argc, char **argv)
 {
 	signal(SIGINT, HandleSignals);
 	signal(SIGTERM, HandleSignals);
+	signal(SIGPIPE, SIG_IGN);
 
 	// Parse command line arguments so we know what is going where.
 	ParseCommandLineArguments(argc, argv);
 
-	if (sizeof(information_t) > 512)
-		printf("information_t is greater than 512 bytes! %ld\n", sizeof(information_t));
+	// Acquire our UDP socket.
+	InitializeSocket();
 
 	// Our main idle loop
 	while (!quit)
 	{
-		information_t info;
-		CollectInformation(&info);
-		SendInformation(&info, sizeof(information_t));
+		// Collect the information and send it!
+		SendDataBurst(GetSystemInformation());
 
 		// We will make this adjustable eventually.
 		printf("Idling for 15 seconds\n");
@@ -263,7 +134,7 @@ int main (int argc, char **argv)
 	}
 
 	// Clean up.
-	free(ipaddress);
+	ShutdownSocket();
 	free(pidfile);
 
 	printf("Exiting!\n");

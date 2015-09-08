@@ -40,7 +40,12 @@ typedef struct information_s
         unsigned int PercentFree;
     } memory_info;
 
-	// TODO: Hard drive info.
+    struct hdd_info_s
+    {
+        // TODO
+        struct hdd_info_s *next;
+    } hdd_info;
+
     struct network_info_s
     {
         const char *InterfaceName;
