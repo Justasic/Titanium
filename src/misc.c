@@ -81,3 +81,25 @@ char *ReadEntireFile(const char *filepath, size_t *size)
 	close(f);
 	return data;
 }
+
+///////////////////////////////////////////////////
+// Function: sgets
+//
+// description:
+// Operates extacly like fgets except on a string
+// buffer as input not a FILE pointer.
+char *sgets(char *s, size_t sz, const char *input)
+{
+	if (!input || !s)
+		return NULL;
+
+	char *orig = input;
+	do
+	{
+		if (*input == '\n' || (input - orig) == sz)
+			break;
+		*s = *input;
+		s++;
+	} while (*input++);
+	return s;
+}

@@ -36,13 +36,16 @@ typedef struct information_s
     {
         uint64_t FreeRam; // In bytes
         uint64_t UsedRam; // In bytes
-        unsigned int PercentUsed;
-        unsigned int PercentFree;
+		uint64_t TotalRam; // In bytes
+		uint64_t AvailRam; // In bytes, An estimate of how much memory is available for starting new applications
+		uint64_t SwapFree; // In bytes
+		uint64_t SwapTotal; // In bytes
     } memory_info;
 
     struct hdd_info_s
     {
         // TODO
+		const char *Name; // Device/partition name.
         struct hdd_info_s *next;
     } hdd_info;
 
@@ -60,9 +63,9 @@ typedef struct information_s
 
     struct
     {
-        const char *type;
-        const char *version;
-        const char *release;
+        const char *Type;
+        const char *Version;
+        const char *Release;
         const uint8_t IsTainted;
     } kernel_info;
 

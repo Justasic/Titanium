@@ -24,35 +24,31 @@
 
 #include "misc.h"
 
-#define _unused __attribute((unused))
-
-// Kernel info struct
-struct
-{
-    const char *buildinfo;
-    const char *version;
-    const char *type; // Obviously going to be linux but someone might be a special snowflake and change this
-    const char *hostname;
-    const uint8_t IsTainted; // If the kernel has a non-oss module loaded. See https://www.kernel.org/doc/Documentation/oops-tracing.txt
-} kernel_t;
+#define _unused __attribute__((unused))
 
 // Based on https://gitlab.com/procps-ng/procps/blob/master/proc/sysinfo.c
 static char buf[8192];
 
-// Get info on the kernel
-int GetKernInfo(information_t)
+///////////////////////////////////////////////////
+// Function: GetKernInfo
+//
+// description:
+// Parses several files to get kernel versions,
+// when the kernel was built, what OS this is,
+// the hostname, and whether the kernel is tainted.
+int GetKernInfo(information_t *info)
 {
     char *blah = NULL;
-    if (!(info->buildinfo = ReadEntireFile("/proc/sys/kernel/version", NULL)))
+    if (!(info->kernel_info.Version = ReadEntireFile("/proc/sys/kernel/version", NULL)))
         goto fail;
 
-    if (!(info->version = ReadEntireFile("/proc/sys/kernel/osrelease", NULL)))
+    if (!(info->kernel_info.Release = ReadEntireFile("/proc/sys/kernel/osrelease", NULL)))
         goto fail;
 
-    if (!(info->type = ReadEntireFile("/proc/sys/kernel/ostype", NULL)))
+    if (!(info->kernel_info.Type = ReadEntireFile("/proc/sys/kernel/ostype", NULL)))
         goto fail;
 
-    if (!(info->hostname = ReadEntireFile("/proc/sys/kernel/hostname", NULL)))
+    if (!(info->Hostname = ReadEntireFile("/proc/sys/kernel/hostname", NULL)))
         goto fail;
 
     // Make the boolean value
@@ -60,12 +56,12 @@ int GetKernInfo(information_t)
         goto fail;
 
     // Are we tainted?
-    info->IsTainted = (atoi(blah) != 0);
+    info->kernel_info.IsTainted = (atoi(blah) != 0);
     free(blah);
-    return info;
+    return 0;
 fail:
     free(info);
-    return NULL;
+    return -1;
 }
 
 ///////////////////////////////////////////////////
@@ -79,8 +75,8 @@ void GetLSBInfo(information_t *info)
     // Idiot check
     assert(info);
 
-    FILE *data = fopen("/etc/lsb-release", "r");
-    if (!data)
+    FILE *f = fopen("/etc/lsb-release", "r");
+    if (!f)
         return -1;
 
     info->lsb_info.dist_id = malloc(1024);     // Anyone who has a DISTRIB_ID longer than a kilobyte is retarded.
@@ -110,20 +106,20 @@ void GetLSBInfo(information_t *info)
 // Like GetLSBInfo this is also optional
 void GetOSRelease(information_t *info)
 {
-    char *data = ReadEntireFile("/etc/os-release", "r");
+    FILE *data = fopen("/etc/os-release", "r");
     if (!data && (errno == EEXIST || errno == EACCES))
     {
         // Try to handle the special snowflake distros
-        data = ReadEntireFile("/etc/gentoo-release", "r");
+        data = fopen("/etc/gentoo-release", "r");
         if (!data)
         {
-            data = ReadEntireFile("/etc/fedora-release", "r");
+            data = fopen("/etc/fedora-release", "r");
             if (!data)
             {
-                data = ReadEntireFile("/etc/redhat-release", "r");
+                data = fopen("/etc/redhat-release", "r");
                 if (!data)
                 {
-                    data = ReadEntireFile("/etc/debian_version", "r");
+                    data = fopen("/etc/debian_version", "r");
                     if (!data)
                         return -1; // Okay we're done. If you're this much of a special snowflake then you can go fuck yourself.
                 }
@@ -133,16 +129,99 @@ void GetOSRelease(information_t *info)
     else if (!data)
         return -1; // we failed and don't know why.
 
+    info->lsb_info.dist_id = malloc(1024);
+    info->lsb_info.description = malloc(1024);
 
-    sscanf(data, "ID=%s", info->lsb_info.dist_id)
-    // TODO
+    while (fgets(buf, sizeof(buf), data))
+    {
+        char *s = strstr("ID", buf);
+        if (s)
+            sscanf(s, "ID=\"%s\"", info->lsb_info.dist_id);
+
+        s = strstr("PRETTY_NAME", buf);
+        if (s)
+            sscanf(s, "PRETTY_NAME=\"%s\"", info->lsb_info.description);
+    }
+    fclose(data);
+
+    info->lsb_info.dist_id = realloc(info->lsb_info.dist_id, strlen(info->lsb_info.dist_id)+1);
+    info->lsb_info.description = realloc(info->lsb_info.description, strlen(info->lsb_info.description)+1);
+    info->lsb_info.Version = strdup("0.0");
+    return 0;
 }
 
-// Parse /proc/meminfo
+///////////////////////////////////////////////////
+// Function: GetMemoryInfo
+//
+// description:
+// Parses /proc/meminfo for information on the RAM
+// and swap usage. This also converts it from
+// kilobytes to bytes.
 int GetMemoryInfo(information_t *info)
 {
     // Idiot check
     assert(info);
+
+    FILE *data = fopen("/proc/meminfo", "r");
+    if (!data)
+        return -1;
+
+    uint64_t TotalkBMemory, UsedkBMemory, FreekBMemory, AvailRam, SwapFree, SwapTotal;
+    TotalkBMemory = FreekBMemory = UsedkBMemory = AvailRam = SwapFree = SwapTotal = 0;
+
+    while (fgets(buf, sizeof(buf), data))
+    {
+        char *s = strstr("MemTotal:", buf);
+        if (s)
+            sscanf(s, "MemTotal: %Lu kB", &TotalkBMemory);
+
+        s = strstr("MemFree:", buf);
+        if (s)
+            sscanf(s, "MemFree: %Lu kB", &FreekBMemory);
+
+        s = strstr("MemAvailable:", buf);
+        if (s)
+            sscanf(s, "MemAvailable: %Lu kB", &AvailRam);
+
+        s = strstr("SwapTotal:", buf);
+        if (s)
+            sscanf(s, "SwapTotal: %Lu kB", &SwapTotal);
+
+        s = strstr("SwapFree:", buf);
+        if (s)
+            sscanf(s, "SwapFree: %Lu kB", &SwapFree);
+    }
+
+    // Get used memory.
+    UsedkBMemory = TotalkBMemory - FreekBMemory;
+
+    // Shift by 10 to get byte counts instead of kilobyte counts.
+    info->memory_info.FreeRam = (FreekBMemory << 10);
+    info->memory_info.UsedRam = (UsedkBMemory << 10);
+    info->memory_info.TotalRam = (TotalkBMemory << 10);
+    info->memory_info.AvailRam = (AvailRam << 10);
+    info->memory_info.SwapFree = (SwapFree << 10);
+    info->memory_info.SwapTotal = (SwapTotal << 10);
+
+    // cleanup and return.
+    fclose(data);
+    return 0;
+}
+
+// Parse /proc/net/dev
+int GetNetworkInfo(information_t *info)
+{
+    // Idiot check
+    assert(info);
+
+}
+
+// Parse /proc/diskinfo
+int GetDiskInfo(information_t *info)
+{
+    // Idiot check
+    assert(info);
+
 }
 
 // Parse /proc/cpuinfo
@@ -150,9 +229,17 @@ int GetCPUInfo(information_t *info)
 {
     // Idiot check
     assert(info);
+
 }
 
-// Parse /proc/loadavg
+///////////////////////////////////////////////////
+// Function: GetLoadAvg
+//
+// description:
+// This function gets the load averages. It also
+// gets the last pid and a few scheduler stats
+// which may be useful in the future (for now they
+// are ignored).
 int GetLoadAvg(information_t *info)
 {
     // Idiot check
@@ -169,7 +256,13 @@ int GetLoadAvg(information_t *info)
     return 0;
 }
 
-// Parse /proc/stats
+///////////////////////////////////////////////////
+// Function: GetStatisticalInfo
+//
+// description:
+// This Function gets the CPU percentage, process
+// count, processes active, time since boot in
+// EPOCH format, and processes waiting on I/O.
 int GetStatisticalInfo(information_t *info)
 {
     // Idiot check
@@ -190,16 +283,51 @@ int GetStatisticalInfo(information_t *info)
     guest_j,              // Time spent running a virtual CPU for guests in KVM
     gnice_j;              // Time spent running niced guest vCPU in KVM
 
+    unsigned long user_k, // Time spent in user mode
+    nice_k,               // Time spent in user mode with low priority
+    sys_k,                // Time spent in kernel space
+    idle_k,               // Time spent idling the CPU
+    wait_k,               // Time spent in waiting for I/O operations
+    irq_k,                // Time spent servicing interrupts
+    sirq_k,               // Time spent servcing softirqs
+    stolen_k,             // Time spent in other operating systems when running in a virtual environment
+    guest_k,              // Time spent running a virtual CPU for guests in KVM
+    gnice_k;              // Time spent running niced guest vCPU in KVM
+
+    // Differences.
+    unsigned long diff_user, diff_system, diff_nice, diff_idle;
+
     // Get the information.
-    fscanf(f, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &user_j, &nice_j, &sys_j, &idle_j, &wait_j, &irq_j, &sirq_j, &stolen_j, &guest_j, &gnice_j);
-    // time since kernel started in EPOCH format
-    fscanf(f, "btime %Lu", info->StartTime);
-    // Number of running processes on the system
-    fscanf(f, "processes %Lu", info->ProcessCount);
-    // Number of ACTIVE running processes on the system
-    fscanf(f, "procs_running %Lu", info->RunningProcessCount);
-    // Number of proceses waiting on system I/O operations.
-    fscanf(f, "procs_blocked %Lu", info->Zombies);
+    while(fgets(buf, sizeof(buf), f))
+    {
+        sscanf(buf, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &user_j, &nice_j, &sys_j, &idle_j, &wait_j, &irq_j, &sirq_j, &stolen_j, &guest_j, &gnice_j);
+        // time since kernel started in EPOCH format
+        sscanf(buf, "btime %Lu", &info->StartTime);
+        // Number of running processes on the system
+        sscanf(buf, "processes %Lu", &info->ProcessCount);
+        // Number of ACTIVE running processes on the system
+        sscanf(buf, "procs_running %Lu", &info->RunningProcessCount);
+        // Number of proceses waiting on system I/O operations.
+        sscanf(buf, "procs_blocked %Lu", &info->Zombies);
+    }
+
+    // Sleep while we wait for the kernel to do some stuff
+    usleep(900000);
+
+    // Now get it all again.
+    fclose(f);
+    f = fopen("/proc/stat", "r");
+    fscanf(f, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &user_k, &nice_k, &sys_k, &idle_k, &wait_k, &irq_k, &sirq_k, &stolen_k, &guest_k, &gnice_k);
+
+    // Calculate the difference and produce a CPU percentage.
+    diff_user = user_k - user_j;
+    diff_nice = nice_k - nice_j;
+    diff_system = sys_k - sys_j;
+    diff_idle = idle_k - idle_j;
+
+    info->CPUPercent = (unsigned int)(((float)(diff_user + diff_nice + diff_system))/((float)(diff_user + diff_nice + diff_system + diff_idle))*100.0);
+
+    fclose(f);
     return 0;
 }
 
@@ -218,7 +346,23 @@ information_t *GetSystemInformation(NULL)
     if (GetLoadAvg(info) != 0)
         goto fail;
 
+    if (GetLSBInfo(info) != 0)
+    {
+        if (GetOSRelease(info) != 0)
+        {
+            // Allocate a string so we don't free non-freeable memory.
+            info->lsb_info.dist_id = info->lsb_info.Version =
+            info->lsb_info.release = info->lsb_info.description = strdup("Unknown");
+        }
+    }
+
+    if (GetMemoryInfo(info) != 0)
+        goto fail;
+
     if (GetStatisticalInfo(info) != 0)
+        goto fail;
+
+    if (GetKernInfo(info) != 0)
         goto fail;
 
     return info;
