@@ -15,6 +15,7 @@
 // via 512-byte packets.
 void SendInformation(void *data, size_t len)
 {
+	#if 0
 	int fd = 0;
 	// Simple type information so we can handle IPv4 and IPv6 easily
 	union
@@ -64,7 +65,23 @@ void SendInformation(void *data, size_t len)
 		else    // we're under 512-bytes now, send the remainder.
 			len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
 	}
-    
+
 	// Close the socket.
 	close(fd);
+	#endif
+}
+
+void InitializeSocket()
+{
+
+}
+
+void ShutdownSocket()
+{
+
+}
+
+void SendDataBurst(information_t *info)
+{
+	
 }

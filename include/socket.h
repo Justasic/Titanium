@@ -67,6 +67,6 @@ enum
 } packettypes_t;
 
 
-extern void InitializeSocket(NULL);
-extern void ShutdownSocket(NULL);
+extern void InitializeSocket();
+extern void ShutdownSocket();
 extern void SendDataBurst(information_t *info);

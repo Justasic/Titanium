@@ -43,9 +43,6 @@ message(STATUS "${PROJECT_NAME} version: ${VERSION_FULL}")
 # Cmake module path (if exists)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
-list(SORT SOURCE_FILES)
-
 # Find clang (if the system has it)
 find_program(CLANG clang)
 find_program(CLANGXX clang++)
@@ -163,9 +160,27 @@ set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
 set(CMAKE_SHARED_LIBRARY_C_FLAGS)         # remove -fPIC
 set(CMAKE_SHARED_LIBRARY_CXX_FLAGS)
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)    # remove -rdynamic
-set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS) 
+set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS)
 
 message(STATUS "LINKFLAGS: ${CMAKE_LINKER_FLAGS}")
+
+# Find our source files.
+file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
+
+# Compile files for each platform.
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
+    file(GLOB SYSTEM_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/${CMAKE_SYSTEM_NAME}/*.c")
+    message(STATUS ${SYSTEM_SOURCES})
+    message(STATUS "Compiling for ${CMAKE_SYSTEM_NAME}")
+    list(APPEND SOURCE_FILES ${SYSTEM_SOURCES})
+    message(STATUS ${SOURCE_FILES})
+else(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
+    message(FATAL_ERROR "Your platform ${CMAKE_SYSTEM_NAME} is not yet supported. Please file a bug report!")
+endif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
+
+# Sort the files.
+list(SORT SOURCE_FILES)
+
 
 # Finally, tell CMake how to build the project
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
@@ -184,4 +199,3 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C PREFIX "" SUF
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES ${CMAKE_SOURCE_DIR}/doc/nbstftp.conf.example DESTINATION etc RENAME nbstftp.conf)
 # install(FILES ${MAN_FILE} DESTINATION man)
-

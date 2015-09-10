@@ -20,7 +20,7 @@
 // Global variable on whether or not we're quitting
 char quit = 0;
 int verbose = 0, port = 2970;
-char *pidfile = NULL;
+char *pidfile = NULL, *ipaddress = NULL;
 
 void HandleSignals(int sig)
 {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 extern char *SizeReduce(size_t size);
 extern char *ReadEntireFile(const char *filepath, size_t *size);
@@ -13,14 +14,14 @@ typedef struct information_s
 	// kernel command line options (if available), CPU Architecture
 	time_t CurrentTime;
 	time_t StartTime; // Seconds in EPOCH format since the system booted.
-	float loads[3]; // Null on windows. -- for now.
+	float Loads[3]; // Null on windows. -- for now.
     float SecondsIdle; // Seconds spent idle (idfk why the kernel gives it as a float)
     float SecondsUptime; // ???
 	unsigned long ProcessCount;
     unsigned long RunningProcessCount;
     unsigned long Zombies;
 	unsigned long UserCount;
-	const char *Hostname;
+	char *Hostname;
 
     struct
     {
@@ -45,17 +46,17 @@ typedef struct information_s
     struct hdd_info_s
     {
         // TODO
-		const char *Name; // Device/partition name.
+		char *Name; // Device/partition name.
         struct hdd_info_s *next;
     } hdd_info;
 
     struct network_info_s
     {
-        const char *InterfaceName;
-        const char IPv6Address[INET6_ADDRSTRLEN];
-        const char IPv4Address[INET_ADDRSTRLEN];
-        const char MACAddress[17]; // Includes colons
-        const char SubnetMask[INET_ADDRSTRLEN]; // This is the IPv4 Subnet Mask and IPv6 CIDR mask
+        char *InterfaceName;
+        char IPv6Address[INET6_ADDRSTRLEN];
+        char IPv4Address[INET_ADDRSTRLEN];
+        char MACAddress[17]; // Includes colons
+        char SubnetMask[INET_ADDRSTRLEN]; // This is the IPv4 Subnet Mask and IPv6 CIDR mask
         uint64_t TX;
         uint64_t RX;
         struct network_info_s *next;
@@ -63,20 +64,20 @@ typedef struct information_s
 
     struct
     {
-        const char *Type;
-        const char *Version;
-        const char *Release;
-        const uint8_t IsTainted;
+        char *Type;
+        char *Version;
+        char *Release;
+        uint8_t IsTainted;
     } kernel_info;
 
 	struct
 	{
-		const char *version;
-		const char *dist_id;
-		const char *release;
-		const char *description;
+		char *Version;
+		char *Dist_id;
+		char *Release;
+		char *Description;
 	} lsb_info;
 } information_t;
 
 // Gets the system info for each platform depending on what it is compiled for
-extern information_t *GetSystemInformation(NULL);
+extern information_t *GetSystemInformation();

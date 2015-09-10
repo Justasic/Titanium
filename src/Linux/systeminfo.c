@@ -7,6 +7,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <assert.h>
+#include <stdio.h>
 
 // Linux-specific includes.
 #include <sys/ioctl.h>
@@ -52,7 +53,7 @@ int GetKernInfo(information_t *info)
         goto fail;
 
     // Make the boolean value
-    if (!(blah = ReadEntireFile("/proc/sys/kernel/hostname", NULL)))
+    if (!(blah = ReadEntireFile("/proc/sys/kernel/tainted", NULL)))
         goto fail;
 
     // Are we tainted?
@@ -70,7 +71,7 @@ fail:
 // description:
 // Parses the information from /etc/lsb-release.
 // It is optional to have this information included.
-void GetLSBInfo(information_t *info)
+int GetLSBInfo(information_t *info)
 {
     // Idiot check
     assert(info);
@@ -79,19 +80,20 @@ void GetLSBInfo(information_t *info)
     if (!f)
         return -1;
 
-    info->lsb_info.dist_id = malloc(1024);     // Anyone who has a DISTRIB_ID longer than a kilobyte is retarded.
-    info->lsb_info.release = malloc(1024);     // same as above
-    info->lsb_info.description = malloc(1024);
+    info->lsb_info.Dist_id = malloc(1024);     // Anyone who has a DISTRIB_ID longer than a kilobyte is retarded.
+    info->lsb_info.Release = malloc(1024);     // same as above
+    info->lsb_info.Description = malloc(1024);
+    info->lsb_info.Version = malloc(1024);
 
     while((fgets(buf, sizeof(buf), f)))
     {
-        sscanf(buf, "LSB_VERSION=%f", &info->lsb_info.version);
-        sscanf(buf, "DISTRIB_ID=%s", info->lsb_info.dist_id);
-        sscanf(buf, "DISTRIB_RELEASE=%s", info->lsb_info.release);
-        sscanf(buf, "DISTRIB_DESCRIPTION=\"%s\"", info->lsb_info.description);
+        sscanf(buf, "LSB_VERSION=%s", info->lsb_info.Version);
+        sscanf(buf, "DISTRIB_ID=%s", info->lsb_info.Dist_id);
+        sscanf(buf, "DISTRIB_RELEASE=%s", info->lsb_info.Release);
+        sscanf(buf, "DISTRIB_DESCRIPTION=\"%s\"", info->lsb_info.Description);
     }
 
-    free(data);
+    fclose(f);
     return 0;
 }
 
@@ -104,7 +106,7 @@ void GetLSBInfo(information_t *info)
 // also handle special cases for certain popular
 // distros which change the name away from os-release.
 // Like GetLSBInfo this is also optional
-void GetOSRelease(information_t *info)
+int GetOSRelease(information_t *info)
 {
     FILE *data = fopen("/etc/os-release", "r");
     if (!data && (errno == EEXIST || errno == EACCES))
@@ -129,23 +131,23 @@ void GetOSRelease(information_t *info)
     else if (!data)
         return -1; // we failed and don't know why.
 
-    info->lsb_info.dist_id = malloc(1024);
-    info->lsb_info.description = malloc(1024);
+    info->lsb_info.Dist_id = malloc(1024);
+    info->lsb_info.Description = malloc(1024);
 
     while (fgets(buf, sizeof(buf), data))
     {
         char *s = strstr("ID", buf);
         if (s)
-            sscanf(s, "ID=\"%s\"", info->lsb_info.dist_id);
+            sscanf(s, "ID=\"%s\"", info->lsb_info.Dist_id);
 
         s = strstr("PRETTY_NAME", buf);
         if (s)
-            sscanf(s, "PRETTY_NAME=\"%s\"", info->lsb_info.description);
+            sscanf(s, "PRETTY_NAME=\"%s\"", info->lsb_info.Description);
     }
     fclose(data);
 
-    info->lsb_info.dist_id = realloc(info->lsb_info.dist_id, strlen(info->lsb_info.dist_id)+1);
-    info->lsb_info.description = realloc(info->lsb_info.description, strlen(info->lsb_info.description)+1);
+    info->lsb_info.Dist_id = realloc(info->lsb_info.Dist_id, strlen(info->lsb_info.Dist_id)+1);
+    info->lsb_info.Description = realloc(info->lsb_info.Description, strlen(info->lsb_info.Description)+1);
     info->lsb_info.Version = strdup("0.0");
     return 0;
 }
@@ -173,23 +175,23 @@ int GetMemoryInfo(information_t *info)
     {
         char *s = strstr("MemTotal:", buf);
         if (s)
-            sscanf(s, "MemTotal: %Lu kB", &TotalkBMemory);
+            sscanf(s, "MemTotal: %lu kB", &TotalkBMemory);
 
         s = strstr("MemFree:", buf);
         if (s)
-            sscanf(s, "MemFree: %Lu kB", &FreekBMemory);
+            sscanf(s, "MemFree: %lu kB", &FreekBMemory);
 
         s = strstr("MemAvailable:", buf);
         if (s)
-            sscanf(s, "MemAvailable: %Lu kB", &AvailRam);
+            sscanf(s, "MemAvailable: %lu kB", &AvailRam);
 
         s = strstr("SwapTotal:", buf);
         if (s)
-            sscanf(s, "SwapTotal: %Lu kB", &SwapTotal);
+            sscanf(s, "SwapTotal: %lu kB", &SwapTotal);
 
         s = strstr("SwapFree:", buf);
         if (s)
-            sscanf(s, "SwapFree: %Lu kB", &SwapFree);
+            sscanf(s, "SwapFree: %lu kB", &SwapFree);
     }
 
     // Get used memory.
@@ -252,7 +254,7 @@ int GetLoadAvg(information_t *info)
     unsigned int _unused sched_existed = 0;
     pid_t _unused lastpid = 0;
 
-    fscanf(f, "%f %f %f %u/%u %Lu", &info->float[0], &info->float[1], &info->float[2], &sched_runnable, &sched_existed, (unsigned long*)&lastpid);
+    fscanf(f, "%f %f %f %u/%u %lu", &info->Loads[0], &info->Loads[1], &info->Loads[2], &sched_runnable, &sched_existed, (unsigned long*)&lastpid);
     return 0;
 }
 
@@ -300,15 +302,15 @@ int GetStatisticalInfo(information_t *info)
     // Get the information.
     while(fgets(buf, sizeof(buf), f))
     {
-        sscanf(buf, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &user_j, &nice_j, &sys_j, &idle_j, &wait_j, &irq_j, &sirq_j, &stolen_j, &guest_j, &gnice_j);
+        sscanf(buf, "cpu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu", &user_j, &nice_j, &sys_j, &idle_j, &wait_j, &irq_j, &sirq_j, &stolen_j, &guest_j, &gnice_j);
         // time since kernel started in EPOCH format
-        sscanf(buf, "btime %Lu", &info->StartTime);
+        sscanf(buf, "btime %lu", &info->StartTime);
         // Number of running processes on the system
-        sscanf(buf, "processes %Lu", &info->ProcessCount);
+        sscanf(buf, "processes %lu", &info->ProcessCount);
         // Number of ACTIVE running processes on the system
-        sscanf(buf, "procs_running %Lu", &info->RunningProcessCount);
+        sscanf(buf, "procs_running %lu", &info->RunningProcessCount);
         // Number of proceses waiting on system I/O operations.
-        sscanf(buf, "procs_blocked %Lu", &info->Zombies);
+        sscanf(buf, "procs_blocked %lu", &info->Zombies);
     }
 
     // Sleep while we wait for the kernel to do some stuff
@@ -317,7 +319,7 @@ int GetStatisticalInfo(information_t *info)
     // Now get it all again.
     fclose(f);
     f = fopen("/proc/stat", "r");
-    fscanf(f, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &user_k, &nice_k, &sys_k, &idle_k, &wait_k, &irq_k, &sirq_k, &stolen_k, &guest_k, &gnice_k);
+    fscanf(f, "cpu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu", &user_k, &nice_k, &sys_k, &idle_k, &wait_k, &irq_k, &sirq_k, &stolen_k, &guest_k, &gnice_k);
 
     // Calculate the difference and produce a CPU percentage.
     diff_user = user_k - user_j;
@@ -325,7 +327,7 @@ int GetStatisticalInfo(information_t *info)
     diff_system = sys_k - sys_j;
     diff_idle = idle_k - idle_j;
 
-    info->CPUPercent = (unsigned int)(((float)(diff_user + diff_nice + diff_system))/((float)(diff_user + diff_nice + diff_system + diff_idle))*100.0);
+    info->cpu_info.CPUPercent = (unsigned int)(((float)(diff_user + diff_nice + diff_system))/((float)(diff_user + diff_nice + diff_system + diff_idle))*100.0);
 
     fclose(f);
     return 0;
@@ -338,7 +340,7 @@ int GetStatisticalInfo(information_t *info)
 // Collects the system information for the platform
 // and fills out the platform-independent information_t
 // structure. This function is called in main.c
-information_t *GetSystemInformation(NULL)
+information_t *GetSystemInformation()
 {
     information_t *info = malloc(sizeof(information_t));
     memset(info, 0, sizeof(information_t));
@@ -351,8 +353,8 @@ information_t *GetSystemInformation(NULL)
         if (GetOSRelease(info) != 0)
         {
             // Allocate a string so we don't free non-freeable memory.
-            info->lsb_info.dist_id = info->lsb_info.Version =
-            info->lsb_info.release = info->lsb_info.description = strdup("Unknown");
+            info->lsb_info.Dist_id = info->lsb_info.Version =
+            info->lsb_info.Release = info->lsb_info.Description = strdup("Unknown");
         }
     }
 
@@ -367,20 +369,20 @@ information_t *GetSystemInformation(NULL)
 
     return info;
 fail:
-    if (info->hostname)
-        free(info->hostname);
+    if (info->Hostname)
+        free(info->Hostname);
 
-    if (info->lsb_info.version)
-        free(info->lsb_info.version);
+    if (info->lsb_info.Version)
+        free(info->lsb_info.Version);
 
-    if (info->lsb_info.dist_id)
-        free(info->lsb_info.dist_id);
+    if (info->lsb_info.Dist_id)
+        free(info->lsb_info.Dist_id);
 
-    if (info->lsb_info.release)
-        free(info->lsb_info.release);
+    if (info->lsb_info.Release)
+        free(info->lsb_info.Release);
 
-    if (info->lsb_info.description)
-        free(info->lsb_info.description);
+    if (info->lsb_info.Description)
+        free(info->lsb_info.Description);
 
     free(info);
     return NULL;

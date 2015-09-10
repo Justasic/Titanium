@@ -78,7 +78,7 @@ char *ReadEntireFile(const char *filepath, size_t *size)
 	}
 
 	// Clean up and return.
-	close(f);
+	fclose(f);
 	return data;
 }
 
@@ -93,7 +93,7 @@ char *sgets(char *s, size_t sz, const char *input)
 	if (!input || !s)
 		return NULL;
 
-	char *orig = input;
+	const char *orig = input;
 	do
 	{
 		if (*input == '\n' || (input - orig) == sz)
