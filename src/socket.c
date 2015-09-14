@@ -9,22 +9,18 @@
 
 #include "socket.h"
 
-// We will send our info over this function. You write all info you must send to
-// the data pointer and give the length of the memory block to len. This function
-// will write the entirety of the memory block in chunks to the Titanium server
-// via 512-byte packets.
-void SendInformation(void *data, size_t len)
+int fd = 0;
+
+// Simple type information so we can handle IPv4 and IPv6 easily
+union
 {
-	#if 0
-	int fd = 0;
-	// Simple type information so we can handle IPv4 and IPv6 easily
-	union
-	{
 		struct sockaddr_in in;
 		struct sockaddr_in6 in6;
 		struct sockaddr sa;
-	} saddr;
+} saddr;
 
+void InitializeSocket()
+{
 	// are we IPv4 or IPv6? TODO: We will deal with hostname resolution later.
 	saddr.sa.sa_family = strstr(ipaddress, ":") != NULL ? AF_INET6 : AF_INET;
 
@@ -50,38 +46,36 @@ void SendInformation(void *data, size_t len)
 		perror("Cannot create socket\n");
 		return;
 	}
-
-	// Send the UDP datagrams.
-	const uint8_t *ptr = (uint8_t*)data;
-	while (len > 0)
-	{
-		// Send a 512-byte block
-		if (len > 512)
-		{
-			sendto(fd, ptr, 512, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
-			ptr += 512;
-			len -= 512;
-		}
-		else    // we're under 512-bytes now, send the remainder.
-			len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
-	}
-
-	// Close the socket.
-	close(fd);
-	#endif
-}
-
-void InitializeSocket()
-{
-
 }
 
 void ShutdownSocket()
 {
+		close(fd);
+}
 
+static void SendDataPacket(void *data, size_t len)
+{
+		// Send the UDP datagrams.
+		const uint8_t *ptr = (uint8_t*)data;
+		while (len > 0)
+		{
+				// Send a 512-byte block
+				if (len > 512)
+				{
+						sendto(fd, ptr, 512, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
+						ptr += 512;
+						len -= 512;
+				}
+				else    // we're under 512-bytes now, send the remainder.
+						len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
+		}
 }
 
 void SendDataBurst(information_t *info)
 {
-	
+		// Send the BEGINBURST packet
+
+		// Send the data packets.
+
+		// Send ENDBURST packet
 }
