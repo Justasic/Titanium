@@ -1,7 +1,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
+#include "misc.h"
 
 ///////////////////////////////////////////////////
 // Function: SizeReduce
@@ -54,7 +56,8 @@ char *ReadEntireFile(const char *filepath, size_t *size)
 		return NULL;
 
 	// Go to the end of the file
-	fseek(f, 0, SEEK_END);
+	if (fseek(f, 0L, SEEK_END) == -1)
+		perror("fseek");
 	// Get length, then go to the top
 	size_t length = ftell(f);
 	rewind(f);
@@ -102,4 +105,44 @@ char *sgets(char *s, size_t sz, const char *input)
 		s++;
 	} while (*input++);
 	return s;
+}
+
+///////////////////////////////////////////////////
+// Function: FreeSystemInformation
+//
+// description:
+// This function simply deallocates all the allocated
+// memory in the information_t structure so we don't
+// memleak every time we send information to the server.
+void FreeSystemInformation(information_t *info)
+{
+	// Free the various information
+	if (info->Hostname)              free(info->Hostname);
+	if (info->cpu_info.Architecture) free(info->cpu_info.Architecture);
+	if (info->cpu_info.Model)        free(info->cpu_info.Model);
+	if (info->kernel_info.Type)      free(info->kernel_info.Type);
+	if (info->kernel_info.Version)   free(info->kernel_info.Version);
+	if (info->kernel_info.Release)   free(info->kernel_info.Release);
+	if (info->lsb_info.Version)      free(info->lsb_info.Version);
+	if (info->lsb_info.Dist_id)      free(info->lsb_info.Dist_id);
+	if (info->lsb_info.Release)      free(info->lsb_info.Release);
+	if (info->lsb_info.Description)  free(info->lsb_info.Description);
+
+	// Free the hard drives.
+	for (hdd_info_t *iter = info->hdd_start, *nextiter; iter; iter = nextiter)
+	{
+		nextiter = iter->next;
+		if (iter->Name) free(iter->Name);
+		free(iter);
+	}
+
+	for (network_info_t *iter = info->net_start, *nextiter; iter; iter = nextiter)
+	{
+		nextiter = iter->next;
+		if (iter->InterfaceName) free(iter->InterfaceName);
+		free(iter);
+	}
+
+	// Finally free our struct.
+	if (info) free(info);
 }

@@ -22,6 +22,7 @@
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include <netdb.h>
+#include <sys/statvfs.h>   // For filesystem information
 
 #include "misc.h"
 
@@ -36,8 +37,7 @@ static char buf[8192];
 // description:
 // Parses several files to get kernel versions,
 // when the kernel was built, what OS this is,
-// the hostname, and whether the kernel is tainted.
-int GetKernInfo(information_t *info)
+static int GetKernInfo(information_t *info)
 {
     char *blah = NULL;
     if (!(info->kernel_info.Version = ReadEntireFile("/proc/sys/kernel/version", NULL)))
@@ -71,7 +71,7 @@ fail:
 // description:
 // Parses the information from /etc/lsb-release.
 // It is optional to have this information included.
-int GetLSBInfo(information_t *info)
+static int GetLSBInfo(information_t *info)
 {
     // Idiot check
     assert(info);
@@ -106,7 +106,7 @@ int GetLSBInfo(information_t *info)
 // also handle special cases for certain popular
 // distros which change the name away from os-release.
 // Like GetLSBInfo this is also optional
-int GetOSRelease(information_t *info)
+static int GetOSRelease(information_t *info)
 {
     FILE *data = fopen("/etc/os-release", "r");
     if (!data && (errno == EEXIST || errno == EACCES))
@@ -159,7 +159,7 @@ int GetOSRelease(information_t *info)
 // Parses /proc/meminfo for information on the RAM
 // and swap usage. This also converts it from
 // kilobytes to bytes.
-int GetMemoryInfo(information_t *info)
+static int GetMemoryInfo(information_t *info)
 {
     // Idiot check
     assert(info);
@@ -173,25 +173,25 @@ int GetMemoryInfo(information_t *info)
 
     while (fgets(buf, sizeof(buf), data))
     {
-        char *s = strstr("MemTotal:", buf);
+        char *s = strstr(buf, "MemTotal: ");
         if (s)
-            sscanf(s, "MemTotal: %lu kB", &TotalkBMemory);
+            sscanf(s, "MemTotal: %lu kB\n", &TotalkBMemory);
 
-        s = strstr("MemFree:", buf);
+        s = strstr(buf, "MemFree: ");
         if (s)
             sscanf(s, "MemFree: %lu kB", &FreekBMemory);
 
-        s = strstr("MemAvailable:", buf);
+        s = strstr(buf, "MemAvailable:");
         if (s)
-            sscanf(s, "MemAvailable: %lu kB", &AvailRam);
+            sscanf(s, "MemAvailable: %lu kB\n", &AvailRam);
 
-        s = strstr("SwapTotal:", buf);
+        s = strstr(buf, "SwapTotal:");
         if (s)
-            sscanf(s, "SwapTotal: %lu kB", &SwapTotal);
+            sscanf(s, "SwapTotal: %lu kB\n", &SwapTotal);
 
-        s = strstr("SwapFree:", buf);
+        s = strstr(buf, "SwapFree:");
         if (s)
-            sscanf(s, "SwapFree: %lu kB", &SwapFree);
+            sscanf(s, "SwapFree: %lu kB\n", &SwapFree);
     }
 
     // Get used memory.
@@ -211,27 +211,188 @@ int GetMemoryInfo(information_t *info)
 }
 
 // Parse /proc/net/dev
-int GetNetworkInfo(information_t *info)
+static int GetNetworkInfo(information_t *info)
 {
     // Idiot check
     assert(info);
+    FILE *f = fopen("/proc/net/dev", "r");
+    if (!f)
+        return -1;
 
+    while(fgets(buf, sizeof(buf), f))
+    {
+
+    }
+
+    fclose(f);
+
+    return 0;
 }
 
 // Parse /proc/diskinfo
-int GetDiskInfo(information_t *info)
+static int GetDiskInfo(information_t *info)
 {
     // Idiot check
     assert(info);
 
+    FILE *f = fopen("/proc/diskstats", "r");
+    if (!f)
+    {
+        perror("fopen");
+        return -1;
+    }
+
+    #if 0
+    Parsing the lines are fairly easy. The format of each line goes as follows:
+    fields:
+     1 - major number
+     2 - minor mumber
+     3 - device name
+     4 - reads completed successfully
+     5 - reads merged
+     6 - sectors read
+     7 - time spent reading (ms)
+     8 - writes completed
+     9 - writes merged
+    10 - sectors written
+    11 - time spent writing (ms)
+    12 - I/Os currently in progress
+    13 - time spent doing I/Os (ms)
+    14 - weighted time spent doing I/Os (ms)
+
+    Field  1 -- # of reads completed
+        This is the total number of reads completed successfully.
+    Field  2 -- # of reads merged, field 6 -- # of writes merged
+        Reads and writes which are adjacent to each other may be merged for
+        efficiency.  Thus two 4K reads may become one 8K read before it is
+        ultimately handed to the disk, and so it will be counted (and queued)
+        as only one I/O.  This field lets you know how often this was done.
+    Field  3 -- # of sectors read
+        This is the total number of sectors read successfully.
+    Field  4 -- # of milliseconds spent reading
+        This is the total number of milliseconds spent by all reads (as
+        measured from __make_request() to end_that_request_last()).
+    Field  5 -- # of writes completed
+        This is the total number of writes completed successfully.
+    Field  6 -- # of writes merged
+        See the description of field 2.
+    Field  7 -- # of sectors written
+        This is the total number of sectors written successfully.
+    Field  8 -- # of milliseconds spent writing
+        This is the total number of milliseconds spent by all writes (as
+        measured from __make_request() to end_that_request_last()).
+    Field  9 -- # of I/Os currently in progress
+        The only field that should go to zero. Incremented as requests are
+        given to appropriate struct request_queue and decremented as they finish.
+    Field 10 -- # of milliseconds spent doing I/Os
+        This field increases so long as field 9 is nonzero.
+    Field 11 -- weighted # of milliseconds spent doing I/Os
+        This field is incremented at each I/O start, I/O completion, I/O
+        merge, or read of these stats by the number of I/Os in progress
+        (field 9) times the number of milliseconds spent doing I/O since the
+        last update of this field.  This can provide an easy measure of both
+        I/O completion time and the backlog that may be accumulating.
+    #endif
+
+    hdd_info_t *iter;
+    info->hdd_start = iter = malloc(sizeof(hdd_info_t));
+
+    while(fgets(buf, sizeof(buf), f))
+    {
+        // Variables
+        uint32_t major, minor;
+        size_t CompletedReads, MergedReads, SectorsRead, TimeSpentReading, CompletedWrites,
+        MergedWrites, SectorsWritten, TimeSpentWriting, IOInProgress, TimeSpentIOProcessing,
+        WeightedTimeSpentIOProcessing;
+        char bufstr[sizeof(buf)];
+
+        // Get the data (yes this is nasty.)
+        sscanf(buf, "%d %d %s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld",
+        &major, &minor, bufstr, &CompletedReads, &MergedReads, &SectorsRead, &TimeSpentReading,
+        &CompletedWrites, &MergedWrites, &SectorsWritten, &TimeSpentWriting,
+        &IOInProgress, &TimeSpentIOProcessing, &WeightedTimeSpentIOProcessing);
+
+        // Fill out the struct.
+        memset(iter, 0, sizeof(hdd_info_t));
+
+
+        iter->Name = strdup(bufstr);
+        iter->BytesRead = CompletedReads;
+        iter->BytesWritten = CompletedWrites;
+        iter->next = malloc(sizeof(hdd_info_t));
+        iter = iter->next;
+    }
+
+    fclose(f);
+    f = fopen("/proc/partitions", "r");
+    if (!f)
+    {
+        perror("fopen");
+        goto end;
+    }
+
+    // Parse /proc/partitions
+    while (fgets(buf, sizeof(buf), f))
+    {
+        // the format of this file was a bit confusing but the procfs man page says
+        // the format is as follows:
+        // major  minor  1024-byte blockcnt    part-name
+        //   8      0      3907018584             sda
+
+        uint32_t major, minor;
+        size_t blocks;
+        char buffer[8192];
+
+        // Skip 1st line.
+        static int cnt = 0;
+        if (!cnt)
+        {
+            cnt++;
+            continue;
+        }
+
+        // Parse the values
+        sscanf(buf, "%d, %d, %lu, %s", &major, &minor, &blocks, &buffer);
+
+        // make the byte count and add the value to the array.
+        for (iter = info->hdd_start; iter; iter = iter->next)
+        {
+            if (!strcmp(iter->Name, buffer))
+                iter->PartitionSize = blocks * 1024;
+        }
+
+    }
+
+    #if 0
+    typedef struct hdd_info_s
+    {
+    	// TODO
+    	char *Name; // Device/partition name.
+    	size_t BytesWritten;
+    	size_t BytesRead;
+
+    	size_t SpaceAvailable; // In bytes
+    	size_t SpaceUsed; // in bytes
+    	size_t PartitionSize; // in bytes
+    	char *MountPoint;
+    	char *FileSystemType; // NTFS or FAT32 on windows.
+    	struct hdd_info_s *next;
+    } hdd_info_t;
+    #endif
+
+end:
+
+    fclose(f);
+    return 0;
 }
 
 // Parse /proc/cpuinfo
-int GetCPUInfo(information_t *info)
+static int GetCPUInfo(information_t *info)
 {
     // Idiot check
     assert(info);
 
+    return 0;
 }
 
 ///////////////////////////////////////////////////
@@ -242,7 +403,7 @@ int GetCPUInfo(information_t *info)
 // gets the last pid and a few scheduler stats
 // which may be useful in the future (for now they
 // are ignored).
-int GetLoadAvg(information_t *info)
+static int GetLoadAvg(information_t *info)
 {
     // Idiot check
     assert(info);
@@ -265,7 +426,7 @@ int GetLoadAvg(information_t *info)
 // This Function gets the CPU percentage, process
 // count, processes active, time since boot in
 // EPOCH format, and processes waiting on I/O.
-int GetStatisticalInfo(information_t *info)
+static int GetStatisticalInfo(information_t *info)
 {
     // Idiot check
     assert(info);
@@ -344,6 +505,7 @@ information_t *GetSystemInformation()
 {
     information_t *info = malloc(sizeof(information_t));
     memset(info, 0, sizeof(information_t));
+    info->CurrentTime = time(NULL);
 
     if (GetLoadAvg(info) != 0)
         goto fail;
@@ -358,6 +520,9 @@ information_t *GetSystemInformation()
         }
     }
 
+    if (GetDiskInfo(info) != 0)
+    goto fail;
+
     if (GetMemoryInfo(info) != 0)
         goto fail;
 
@@ -369,21 +534,6 @@ information_t *GetSystemInformation()
 
     return info;
 fail:
-    if (info->Hostname)
-        free(info->Hostname);
-
-    if (info->lsb_info.Version)
-        free(info->lsb_info.Version);
-
-    if (info->lsb_info.Dist_id)
-        free(info->lsb_info.Dist_id);
-
-    if (info->lsb_info.Release)
-        free(info->lsb_info.Release);
-
-    if (info->lsb_info.Description)
-        free(info->lsb_info.Description);
-
-    free(info);
+    FreeSystemInformation(info);
     return NULL;
 }

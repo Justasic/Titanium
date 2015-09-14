@@ -85,6 +85,10 @@ else (NOT HAVE_C11_FLAG)
 	set(CFLAGS "${CFLAGS} -std=c11")
 endif (NOT HAVE_C11_FLAG)
 
+if (CMAKE_BUILD_TYPE EQUAL "DEBUG")
+    add_definitions(-D_DEBUG)
+endif (CMAKE_BUILD_TYPE EQUAL "DEBUG")
+
 # Add some feature test macro definitions.
 # _GNU_SOURCE is used because we use strndupa and alloca, remove references to alloca/strndupa and
 # you can remove this feature test macro for _GNU_SOURCE
@@ -162,7 +166,6 @@ set(CMAKE_SHARED_LIBRARY_CXX_FLAGS)
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)    # remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS)
 
-message(STATUS "LINKFLAGS: ${CMAKE_LINKER_FLAGS}")
 
 # Find our source files.
 file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
@@ -170,10 +173,8 @@ file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
 # Compile files for each platform.
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
     file(GLOB SYSTEM_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/${CMAKE_SYSTEM_NAME}/*.c")
-    message(STATUS ${SYSTEM_SOURCES})
-    message(STATUS "Compiling for ${CMAKE_SYSTEM_NAME}")
+    message(STATUS "Compiling ${CMAKE_BUILD_TYPE} build for ${CMAKE_SYSTEM_NAME}")
     list(APPEND SOURCE_FILES ${SYSTEM_SOURCES})
-    message(STATUS ${SOURCE_FILES})
 else(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
     message(FATAL_ERROR "Your platform ${CMAKE_SYSTEM_NAME} is not yet supported. Please file a bug report!")
 endif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${CMAKE_SYSTEM_NAME}")
