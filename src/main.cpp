@@ -87,6 +87,9 @@ void OpenListener(int sock_fd)
 
 		r.Write("<html><head>");
 		r.Write("<link rel=\"stylesheet\" type=\"text/css\" href=\"/base.css\"></link>");
+		r.Write("<script src=\"//ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js\"></script>");
+		r.Write("<link rel=\"stylesheet\" type=\"text/css\" href=\"//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css\"></link>");
+		r.Write("<script src=\"//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js\"></script>");
 		r.Write("<title>Titanium Home</title>");
 		r.Write("</head>");
 		r.Write("<body>");
@@ -107,6 +110,7 @@ void OpenListener(int sock_fd)
 
 		// Dump a table out.
 		r.Write("<table id=\"SysmonTable\"> \
+		<thead> \
 		<tr> \
 			<th>Hostname</th> \
 			<th>Processes</th> \
@@ -115,7 +119,8 @@ void OpenListener(int sock_fd)
 			<th>Kernel</th> \
 			<th>Last Updated</th> \
 			<th>Down since</th> \
-		</tr>");
+		</tr> \
+		</thead>");
 
 		// Run query for hosts
 		try {
@@ -152,13 +157,8 @@ void OpenListener(int sock_fd)
 				else if (timediff > 30) // we're down for 30 seconds, we could've just missed a packet.
 					classstr = "recent";
 
-				r.Write("<tr class=\"%s\">", classstr);
-
-// 				for (int i = 0; i < mr.fields; ++i)
-// 				{
-// 					tfm::printf("%s ", it.second[i].empty() ? "(NULL)" : it.second[i]);
-// 				}
-// 				printf("\n");
+				r.Write("<tr class=\"%s clickable\" id=\"row%s\" data-toggle=\"collapse\" data-target=\"#accordion%s\">",
+								classstr, it.second[0], it.second[0]);
 
 				r.Write("<td>%s</td> \
 				<td>%s</td> \
@@ -170,6 +170,11 @@ void OpenListener(int sock_fd)
 					it.second[5], it.second[6], classstr == "up" ? "Never" : Duration(timediff));
 
 				r.Write("</tr>");
+
+				r.Write("<tr><td colspan=\"7\"><div id=\"accordion%s\" class=\"collapse\">", it.second[0]);
+				r.Write("Herp a derp asf asdfhsdj ashdjfk asdkjfh<br>asdfkjh asdkljf asdkflj hasdfkjlh asdfklj hadsf<br>");
+				r.Write("</div></td></tr>");
+
 			}
 		}
 		catch(const MySQLException &e)
@@ -178,9 +183,13 @@ void OpenListener(int sock_fd)
 			r.Write("<p>MySQL error: %s</p><br/>", e.what());
 		}
 
-		r.Write("</table></body>");
+		r.Write("</table>");
 
-		r.Write("</html>");
+		// JavaScript
+		r.Write("<script type=\"text/javascript\">");
+		r.Write("</script>");
+
+		r.Write("</body></html>");
 finish:
 
 		FCGX_Finish_r(&request);

@@ -186,6 +186,7 @@ ADD_FLEX_BISON_DEPENDENCY(LEXER PARSER)
 
 # Make sure if the platform we're on requires libdl that we use it.
 find_library(LIBDL dl)
+find_library(LIBPTHREAD pthread)
 
 # Add our include directories
 include_directories(${CMAKE_SOURCE_DIR}/include ${MYSQL_INCLUDE_DIR} ${FastCGI_INCLUDE_DIR})
@@ -217,6 +218,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX PREFIX "" S
 if (LIBDL)
 	target_link_libraries(${PROJECT_NAME} dl)
 endif (LIBDL)
+if (LIBPTHREAD)
+		target_link_libraries(${PROJECT_NAME} ${LIBPTHREAD})
+endif (LIBPTHREAD)
 target_link_libraries(${PROJECT_NAME} ${MYSQL_LIBRARIES} ${FastCGI_LIBRARIES})
 # add_dependencies(${PROJECT_NAME} license_headers)
 

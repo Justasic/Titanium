@@ -46,3 +46,7 @@ h2 {
 	padding-left: 6px;
 }
 
+#SysmonTable tr:hover {
+		background-color: rgba(0,0,0,0.5);
+		cursor: pointer;
+}
