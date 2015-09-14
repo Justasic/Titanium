@@ -74,8 +74,11 @@ static void SendDataPacket(void *data, size_t len)
 void SendDataBurst(information_t *info)
 {
 		// Send the BEGINBURST packet
-
+		uint8_t begin = htons(DATABURST);
+		sendto(fd, &begin, sizeof(begin), 0, &saddr.sa, sizeof(saddr.sa));
 		// Send the data packets.
 
 		// Send ENDBURST packet
+		uint8_t end = htons(ENDBURST);
+		sendto(fd, &end, sizeof(end), 0, &saddr.sa, sizeof(saddr.sa));
 }

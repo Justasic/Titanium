@@ -107,3 +107,4 @@ typedef struct information_s
 // Gets the system info for each platform depending on what it is compiled for
 extern information_t *GetSystemInformation();
 extern void FreeSystemInformation(information_t*);
+extern void *memrev(void *dest, const void *src, size_t n);
