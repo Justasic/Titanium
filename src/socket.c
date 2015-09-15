@@ -2,14 +2,23 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
 #include "socket.h"
+#include "serialize.h"
 
 int fd = 0;
+uint32_t timeout = 60;
+extern int port;
+extern char *ipaddress;
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
 
 // Simple type information so we can handle IPv4 and IPv6 easily
 union
@@ -19,7 +28,7 @@ union
 		struct sockaddr sa;
 } saddr;
 
-void InitializeSocket()
+void InitializeSocket(void)
 {
 	// are we IPv4 or IPv6? TODO: We will deal with hostname resolution later.
 	saddr.sa.sa_family = strstr(ipaddress, ":") != NULL ? AF_INET6 : AF_INET;
@@ -48,26 +57,61 @@ void InitializeSocket()
 	}
 }
 
-void ShutdownSocket()
+void ShutdownSocket(void)
 {
 		close(fd);
 }
 
-static void SendDataPacket(void *data, size_t len)
+// Make a datapacket struct.
+typedef struct
+{
+		uint8_t packet;
+		uint32_t packetno;
+		uint8_t data[512 - sizeof(uint8_t) - sizeof(uint32_t)];
+} datapack_t;
+
+typedef struct
+{
+		uint8_t packet;
+		uint32_t data;
+} packet_t;
+
+static void SendDataPackets(void *data, size_t len)
 {
 		// Send the UDP datagrams.
 		const uint8_t *ptr = (uint8_t*)data;
+
+		static uint32_t packetno = 0;
+		uint32_t totalpackets = len / 512;
+
+		// Send our INFOPACKS packet
+		packet_t pak = { INFOPACKS, totalpackets };
+		sendto(fd, &pak, sizeof(packet_t), 0, &saddr.sa, sizeof(saddr.sa));
+
+		// Start transmitting data.
 		while (len > 0)
 		{
-				// Send a 512-byte block
-				if (len > 512)
-				{
-						sendto(fd, ptr, 512, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
-						ptr += 512;
-						len -= 512;
-				}
-				else    // we're under 512-bytes now, send the remainder.
-						len -= sendto(fd, ptr, len, 0, (struct sockaddr *)&saddr.sa, sizeof(saddr.sa));
+				// Fill out the struct
+				datapack_t dat;
+				memset(&dat, 0, sizeof(datapack_t));
+				dat.packetno = packetno;
+				dat.packet = INFO;
+
+				// Who is the smallest?
+				size_t clen = MIN(len, sizeof(dat.data));
+
+				// Copy the data
+				memcpy(dat.data, data, clen);
+
+				// Update the pointer and remaining length
+				ptr += clen;
+				len -= clen;
+
+				// Send the data packet
+				sendto(fd, &dat, sizeof(datapack_t), 0, &saddr.sa, sizeof(saddr.sa));
+
+				// Increment the packet number.
+				packetno++;
 		}
 }
 
@@ -76,9 +120,23 @@ void SendDataBurst(information_t *info)
 		// Send the BEGINBURST packet
 		uint8_t begin = htons(DATABURST);
 		sendto(fd, &begin, sizeof(begin), 0, &saddr.sa, sizeof(saddr.sa));
-		// Send the data packets.
+
+		// Send the timeout packet so the server knows when to expect our next message
+		packet_t pak = { TIMEOUT, timeout };
+		sendto(fd, &pak, sizeof(packet_t), 0, &saddr.sa, sizeof(saddr.sa));
+
+		// Serialize the information_t struct to a data block we can just send
+		// in 512-byte chunks like a file.
+		binn *map = SerializeData(info);
+		
+		// Now transmit the data to the server.
+		SendDataPackets(binn_ptr(map), binn_size(map));
 
 		// Send ENDBURST packet
 		uint8_t end = htons(ENDBURST);
 		sendto(fd, &end, sizeof(end), 0, &saddr.sa, sizeof(saddr.sa));
+
+		// Delete the serialized data.
+		// TODO: Does this memleak because we have nested maps and lists?
+		binn_free(map);
 }

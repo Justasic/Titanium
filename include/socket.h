@@ -55,6 +55,12 @@
 // The infopaks packet defines how many info packets to expect. This value is used to determine
 // whether we received all the data we were supposed to receive. this packet is similar to the
 // timeout packet.
+//
+//
+//         -------------------------------------------------------------
+//         | infopack (1-byte) | number of packets to expect (4-bytes) |
+//         -------------------------------------------------------------
+//
 
 
 enum
@@ -67,6 +73,6 @@ enum
 } packettypes_t;
 
 
-extern void InitializeSocket();
-extern void ShutdownSocket();
+extern void InitializeSocket(void);
+extern void ShutdownSocket(void);
 extern void SendDataBurst(information_t *info);

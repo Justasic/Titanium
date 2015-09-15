@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h> // for memcpy
 #include <stdio.h>
 #include <errno.h>
 

@@ -352,7 +352,7 @@ static int GetDiskInfo(information_t *info)
         }
 
         // Parse the values
-        sscanf(buf, "%d, %d, %lu, %s", &major, &minor, &blocks, &buffer);
+        sscanf(buf, "%d, %d, %lu, %s", &major, &minor, &blocks, buffer);
 
         // make the byte count and add the value to the array.
         for (iter = info->hdd_start; iter; iter = iter->next)
