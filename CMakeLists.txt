@@ -43,6 +43,8 @@ message(STATUS "${PROJECT_NAME} version: ${VERSION_FULL}")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
+file(GLOB CSOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c");
+list(APPEND SOURCE_FILES ${CSOURCE_FILES})
 list(SORT SOURCE_FILES)
 
 # Find clang (if the system has it)
@@ -228,4 +230,3 @@ target_link_libraries(${PROJECT_NAME} ${MYSQL_LIBRARIES} ${FastCGI_LIBRARIES})
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 install(FILES ${CMAKE_SOURCE_DIR}/doc/nbstftp.conf.example DESTINATION etc RENAME nbstftp.conf)
 # install(FILES ${MAN_FILE} DESTINATION man)
-

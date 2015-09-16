@@ -172,7 +172,19 @@ void OpenListener(int sock_fd)
 				r.Write("</tr>");
 
 				r.Write("<tr><td colspan=\"7\"><div id=\"accordion%s\" class=\"collapse\">", it.second[0]);
-				r.Write("Herp a derp asf asdfhsdj ashdjfk asdkjfh<br>asdfkjh asdkljf asdkflj hasdfkjlh asdfklj hadsf<br>");
+
+				r.Write("<div class=\"left\">");
+				r.Write("Hostname: %s<br>Process Count: %s<br>Uptime: %s", it.second[3], it.second[2], uptime);
+				r.Write("</div>");
+
+				r.Write("<div class=\"center\">");
+				r.Write("This is test text");
+				r.Write("</div>");
+
+				r.Write("<div class=\"right\">");
+				r.Write("Architecture: %s<br>Kernel: %s<br>Last Updated: %s", it.second[4], it.second[5], Duration(timediff));
+				r.Write("</div>");
+
 				r.Write("</div></td></tr>");
 
 			}

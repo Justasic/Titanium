@@ -42,8 +42,6 @@ public:
 		FCGX_PutStr(reinterpret_cast<const char *>(data), len, this->request->out);
 	}
 
-
-
 	std::string GetParam(const std::string &str);
 
 	void SetStatus(int st);

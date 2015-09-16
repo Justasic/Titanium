@@ -28,6 +28,16 @@ h2 {
 	color: #000000;
 }
 
+.right {
+		float: right;
+}
+.center {
+		display: inline-block;
+}
+.left {
+		float: left;
+}
+
 #SysmonTable {
 	border: 3px solid #CCC;
 	border-collapse: collapse;
