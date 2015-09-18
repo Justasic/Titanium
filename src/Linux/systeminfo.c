@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <stdio.h>
+#include <limits.h>
 
 // Linux-specific includes.
 #include <sys/ioctl.h>
@@ -23,6 +24,8 @@
 #include <sys/time.h>
 #include <netdb.h>
 #include <sys/statvfs.h>   // For filesystem information
+#include <sys/utsname.h>
+
 
 #include "misc.h"
 
@@ -39,18 +42,27 @@ static char buf[8192];
 // when the kernel was built, what OS this is,
 static int GetKernInfo(information_t *info)
 {
+    // Kernel information.
+    struct utsname uts;
+    if (uname(&uts) == -1)
+    {
+        perror("uname");
+        return -1;
+    }
+
+    info->kernel_info.Version = strdup(uts.version);
+    info->kernel_info.Release = strdup(uts.release);
+    info->kernel_info.Type = strdup(uts.sysname);
+
+    // Get the hostname.
+    info->Hostname = malloc(HOST_NAME_MAX);
+    if (gethostname(info->Hostname, HOST_NAME_MAX) == -1)
+    {
+        perror("gethostname");
+        return -1;
+    }
+
     char *blah = NULL;
-    if (!(info->kernel_info.Version = ReadEntireFile("/proc/sys/kernel/version", NULL)))
-        goto fail;
-
-    if (!(info->kernel_info.Release = ReadEntireFile("/proc/sys/kernel/osrelease", NULL)))
-        goto fail;
-
-    if (!(info->kernel_info.Type = ReadEntireFile("/proc/sys/kernel/ostype", NULL)))
-        goto fail;
-
-    if (!(info->Hostname = ReadEntireFile("/proc/sys/kernel/hostname", NULL)))
-        goto fail;
 
     // Make the boolean value
     if (!(blah = ReadEntireFile("/proc/sys/kernel/tainted", NULL)))
@@ -61,7 +73,7 @@ static int GetKernInfo(information_t *info)
     free(blah);
     return 0;
 fail:
-    free(info);
+    if (blah) free(blah);
     return -1;
 }
 
@@ -234,6 +246,7 @@ static int GetDiskInfo(information_t *info)
 {
     // Idiot check
     assert(info);
+    memset(&buf, 0, sizeof(buf));
 
     FILE *f = fopen("/proc/diskstats", "r");
     if (!f)
@@ -294,7 +307,7 @@ static int GetDiskInfo(information_t *info)
         I/O completion time and the backlog that may be accumulating.
     #endif
 
-    hdd_info_t *iter;
+    hdd_info_t *iter = NULL;
     info->hdd_start = iter = malloc(sizeof(hdd_info_t));
 
     while(fgets(buf, sizeof(buf), f))
@@ -305,6 +318,7 @@ static int GetDiskInfo(information_t *info)
         MergedWrites, SectorsWritten, TimeSpentWriting, IOInProgress, TimeSpentIOProcessing,
         WeightedTimeSpentIOProcessing;
         char bufstr[sizeof(buf)];
+        memset(bufstr, 0, sizeof(buf));
 
         // Get the data (yes this is nasty.)
         sscanf(buf, "%d %d %s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld",
@@ -314,14 +328,23 @@ static int GetDiskInfo(information_t *info)
 
         // Fill out the struct.
         memset(iter, 0, sizeof(hdd_info_t));
+        iter->Name = iter->next = NULL;
 
+        printf("bufstr: %s\n", bufstr);
 
         iter->Name = strdup(bufstr);
         iter->BytesRead = CompletedReads;
         iter->BytesWritten = CompletedWrites;
         iter->next = malloc(sizeof(hdd_info_t));
+
+        printf("HDD: %s\n", iter->Name);
+
         iter = iter->next;
     }
+
+    // This is the end of the list.
+    free(iter->next);
+    iter->next = NULL;
 
     fclose(f);
     f = fopen("/proc/partitions", "r");
@@ -342,6 +365,7 @@ static int GetDiskInfo(information_t *info)
         uint32_t major, minor;
         size_t blocks;
         char buffer[8192];
+        memset(&buffer, 0, sizeof(buffer));
 
         // Skip 1st line.
         static int cnt = 0;
@@ -357,29 +381,14 @@ static int GetDiskInfo(information_t *info)
         // make the byte count and add the value to the array.
         for (iter = info->hdd_start; iter; iter = iter->next)
         {
+            printf("Looking for hdd... %s\n", iter->Name);
+            if (!iter->Name)
+                continue;
             if (!strcmp(iter->Name, buffer))
                 iter->PartitionSize = blocks * 1024;
         }
 
     }
-
-    #if 0
-    typedef struct hdd_info_s
-    {
-    	// TODO
-    	char *Name; // Device/partition name.
-    	size_t BytesWritten;
-    	size_t BytesRead;
-
-    	size_t SpaceAvailable; // In bytes
-    	size_t SpaceUsed; // in bytes
-    	size_t PartitionSize; // in bytes
-    	char *MountPoint;
-    	char *FileSystemType; // NTFS or FAT32 on windows.
-    	struct hdd_info_s *next;
-    } hdd_info_t;
-    #endif
-
 end:
 
     fclose(f);
@@ -505,6 +514,12 @@ information_t *GetSystemInformation()
 {
     information_t *info = malloc(sizeof(information_t));
     memset(info, 0, sizeof(information_t));
+    memset(&info->memory_info, 0, sizeof(info->memory_info));
+    memset(&info->kernel_info, 0, sizeof(info->kernel_info));
+    memset(&info->lsb_info, 0, sizeof(info->lsb_info));
+    info->hdd_start = NULL;
+    info->net_start = NULL;
+    info->Hostname = NULL;
     info->CurrentTime = time(NULL);
 
     if (GetLoadAvg(info) != 0)
@@ -520,8 +535,9 @@ information_t *GetSystemInformation()
         }
     }
 
-    if (GetDiskInfo(info) != 0)
-    goto fail;
+    // TODO: Unfuck this function
+    //if (GetDiskInfo(info) != 0)
+    //    goto fail;
 
     if (GetMemoryInfo(info) != 0)
         goto fail;

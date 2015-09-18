@@ -63,14 +63,14 @@ void ShutdownSocket(void)
 }
 
 // Make a datapacket struct.
-typedef struct
+typedef struct __attribute__((packed))
 {
 		uint8_t packet;
 		uint32_t packetno;
 		uint8_t data[512 - sizeof(uint8_t) - sizeof(uint32_t)];
 } datapack_t;
 
-typedef struct
+typedef struct __attribute__((packed))
 {
 		uint8_t packet;
 		uint32_t data;
@@ -81,11 +81,14 @@ static void SendDataPackets(void *data, size_t len)
 		// Send the UDP datagrams.
 		const uint8_t *ptr = (uint8_t*)data;
 
-		static uint32_t packetno = 0;
-		uint32_t totalpackets = len / 512;
+		printf("%ld bytes of data\n", len);
+
+		uint32_t packetno = 0;
+		uint32_t totalpackets = len < 512 ? 1 : len / 512;
 
 		// Send our INFOPACKS packet
-		packet_t pak = { INFOPACKS, totalpackets };
+		printf("Sending %d (INFOPACKS) packet with a total of %d (%d) packets to send\n", INFOPACKS, totalpackets, htonl(totalpackets));
+		packet_t pak = { INFOPACKS, htonl(totalpackets) };
 		sendto(fd, &pak, sizeof(packet_t), 0, &saddr.sa, sizeof(saddr.sa));
 
 		// Start transmitting data.
@@ -94,7 +97,7 @@ static void SendDataPackets(void *data, size_t len)
 				// Fill out the struct
 				datapack_t dat;
 				memset(&dat, 0, sizeof(datapack_t));
-				dat.packetno = packetno;
+				dat.packetno = htonl(packetno);
 				dat.packet = INFO;
 
 				// Who is the smallest?
@@ -117,23 +120,28 @@ static void SendDataPackets(void *data, size_t len)
 
 void SendDataBurst(information_t *info)
 {
+		printf("Sending %d (DATABURST) packet\n", DATABURST);
 		// Send the BEGINBURST packet
-		uint8_t begin = htons(DATABURST);
+		uint8_t begin = DATABURST;
 		sendto(fd, &begin, sizeof(begin), 0, &saddr.sa, sizeof(saddr.sa));
 
 		// Send the timeout packet so the server knows when to expect our next message
-		packet_t pak = { TIMEOUT, timeout };
+		printf("Sending %d (TIMEOUT) packet\n", TIMEOUT);
+		packet_t pak = { TIMEOUT, htonl(timeout) };
 		sendto(fd, &pak, sizeof(packet_t), 0, &saddr.sa, sizeof(saddr.sa));
 
 		// Serialize the information_t struct to a data block we can just send
 		// in 512-byte chunks like a file.
+		printf("Serialize and send\n");
 		binn *map = SerializeData(info);
-		
+
 		// Now transmit the data to the server.
+		printf("Datalength is %d\n", binn_size(map));
 		SendDataPackets(binn_ptr(map), binn_size(map));
 
 		// Send ENDBURST packet
-		uint8_t end = htons(ENDBURST);
+		printf("Sending %d (ENDBURST) packet\n", ENDBURST);
+		uint8_t end = ENDBURST;
 		sendto(fd, &end, sizeof(end), 0, &saddr.sa, sizeof(saddr.sa));
 
 		// Delete the serialized data.

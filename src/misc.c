@@ -164,6 +164,7 @@ void FreeSystemInformation(information_t *info)
 	for (hdd_info_t *iter = info->hdd_start, *nextiter; iter; iter = nextiter)
 	{
 		nextiter = iter->next;
+		printf("Freeing %s\n", iter->Name);
 		if (iter->Name) free(iter->Name);
 		free(iter);
 	}
@@ -174,6 +175,9 @@ void FreeSystemInformation(information_t *info)
 		if (iter->InterfaceName) free(iter->InterfaceName);
 		free(iter);
 	}
+
+	// clean the memory block out.
+	memset(info, 0, sizeof(information_t));
 
 	// Finally free our struct.
 	if (info) free(info);

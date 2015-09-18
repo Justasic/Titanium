@@ -56,6 +56,7 @@ void ParseCommandLineArguments(int argc, char **argv)
 	};
 
 	int c = 0, option_index = 0;
+	optarg = NULL;
 
 	while((c = getopt_long (argc, argv, "fhc:p:", long_options, &option_index)) != -1)
 	{
