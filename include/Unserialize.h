@@ -13,7 +13,6 @@ typedef struct hdd_info_s
 	size_t PartitionSize; // in bytes
 	char *MountPoint;
 	char *FileSystemType; // NTFS or FAT32 on windows.
-	struct hdd_info_s *next;
 } hdd_info_t;
 
 typedef struct network_info_s
@@ -25,7 +24,6 @@ typedef struct network_info_s
 	char SubnetMask[INET_ADDRSTRLEN]; // This is the IPv4 Subnet Mask and IPv6 CIDR mask
 	uint64_t TX;
 	uint64_t RX;
-	struct network_info_s *next;
 } network_info_t;
 
 typedef struct information_s
@@ -65,9 +63,11 @@ typedef struct information_s
 		uint64_t SwapTotal; // In bytes
 	} memory_info;
 
-	hdd_info_t *hdd_start;
+	// Hard drives.
+	std::vector<hdd_info_t*> hdd_start;
 
-	network_info_t *net_start;
+	// Network interfaces
+	std::vector<network_info_t*> net_start;
 
 	struct
 	{
