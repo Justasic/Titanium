@@ -1,27 +1,29 @@
 #pragma once
 #include <stdint.h>
+#include <vector>
+#include <string>
 
 typedef struct hdd_info_s
 {
 	// TODO
-	char *Name; // Device/partition name.
+	std::string Name; // Device/partition name.
 	size_t BytesWritten;
 	size_t BytesRead;
 
 	size_t SpaceAvailable; // In bytes
 	size_t SpaceUsed; // in bytes
 	size_t PartitionSize; // in bytes
-	char *MountPoint;
-	char *FileSystemType; // NTFS or FAT32 on windows.
+	std::string MountPoint;
+	std::string FileSystemType; // NTFS or FAT32 on windows.
 } hdd_info_t;
 
 typedef struct network_info_s
 {
-	char *InterfaceName;
-	char IPv6Address[INET6_ADDRSTRLEN];
-	char IPv4Address[INET_ADDRSTRLEN];
-	char MACAddress[17]; // Includes colons
-	char SubnetMask[INET_ADDRSTRLEN]; // This is the IPv4 Subnet Mask and IPv6 CIDR mask
+	std::string InterfaceName;
+	std::string IPv6Address;
+	std::string IPv4Address;
+	std::string MACAddress; // Includes colons
+	std::string SubnetMask; // This is the IPv4 Subnet Mask and IPv6 CIDR mask
 	uint64_t TX;
 	uint64_t RX;
 } network_info_t;
@@ -41,12 +43,12 @@ typedef struct information_s
 	unsigned long RunningProcessCount;
 	unsigned long Zombies;
 	unsigned long UserCount;
-	char *Hostname;
+	std::string Hostname;
 
 	struct
 	{
-		char *Architecture;   // arm, i386, x86_64, etc.
-		char *Model;          // Model from the kernel (eg, Intel(R) Core(TM) i7-4930K CPU @ 3.40GHz)
+		std::string Architecture;   // arm, i386, x86_64, etc.
+		std::string Model;          // Model from the kernel (eg, Intel(R) Core(TM) i7-4930K CPU @ 3.40GHz)
 		unsigned int Cores;         // How many logical processors the kernel sees (including hyperthreaded ones)
 		unsigned int PhysicalCores; // How many physical cores exist on the die
 		float CurrentSpeed;         // Current speed of the CPU.
@@ -71,18 +73,18 @@ typedef struct information_s
 
 	struct
 	{
-		char *Type;
-		char *Version;
-		char *Release;
+		std::string Type;
+		std::string Version;
+		std::string Release;
 		uint8_t IsTainted;
 	} kernel_info;
 
 	struct
 	{
-		char *Version;
-		char *Dist_id;
-		char *Release;
-		char *Description;
+		std::string Version;
+		std::string Dist_id;
+		std::string Release;
+		std::string Description;
 	} lsb_info;
 } information_t;
 

@@ -84,7 +84,6 @@ void OpenListener(int sock_fd)
 		r.Write("Content-Type: text/html\r\n\r\n");
 
 		// Send our message
-
 		r.Write("<html><head>");
 		r.Write("<link rel=\"stylesheet\" type=\"text/css\" href=\"/base.css\"></link>");
 		r.Write("<script src=\"//ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js\"></script>");

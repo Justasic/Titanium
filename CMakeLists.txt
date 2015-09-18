@@ -43,8 +43,8 @@ message(STATUS "${PROJECT_NAME} version: ${VERSION_FULL}")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
-file(GLOB CSOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c");
-list(APPEND SOURCE_FILES ${CSOURCE_FILES})
+file(GLOB CSOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
+list(SORT CSOURCE_FILES)
 list(SORT SOURCE_FILES)
 
 # Find clang (if the system has it)
@@ -70,24 +70,42 @@ project(Titanium CXX)
 enable_language(C)
 
 include (CheckCXXCompilerFlag)
+include (CheckCCompilerFlag)
 
 # Make sure the compiler accepts C11
-check_cxx_compiler_flag(-std=c++11 HAVE_C11_FLAG)
+check_cxx_compiler_flag(-std=c++11 HAVE_CXX11_FLAG)
+check_c_compiler_flag(-std=c11 HAVE_C11_FLAG)
 set(CFLAGS "${CFLAGS} -g -Werror=implicit-function-declaration")
+set(CXXFLAGS "${CFLAGS}")
+
+if (NOT HAVE_CXX11_FLAG)
+	#If the compiler doesn't have the -std=c++11 flag, try and use the -std=c++0x but let the user
+	# know that we may not be able to compile.
+	check_cxx_compiler_flag(-std=c++0x HAVE_CXX1X_FLAG)
+
+	if (NOT HAVE_CXX1X_FLAG)
+		message(FATAL_ERROR "Your compiler (${CMAKE_CXX_COMPILER}) MUST support C++11. Try using CXX=<alternative compiler>")
+	else (NOT HAVE_CXX1X_FLAG)
+		message(WARNING "Your compiler appears to support an older version of C++11, the compile may fail! Please update your compiler before reporting any bugs!")
+		set(CXXFLAGS "${CXXFLAGS} -std=c++0x")
+	endif (NOT HAVE_CXX1X_FLAG)
+else (NOT HAVE_CXX11_FLAG)
+	set(CXXFLAGS "${CXXFLAGS} -std=c++11")
+endif (NOT HAVE_CXX11_FLAG)
 
 if (NOT HAVE_C11_FLAG)
 	#If the compiler doesn't have the -std=c11 flag, try and use the -std=c1x but let the user
 	# know that we may not be able to compile.
-	check_cxx_compiler_flag(-std=c++0x HAVE_C1X_FLAG)
+	check_c_compiler_flag(-std=c1x HAVE_C1X_FLAG)
 
 	if (NOT HAVE_C1X_FLAG)
-		message(FATAL_ERROR "Your compiler (${CMAKE_C_COMPILER}) MUST support C++11. Try using CXX=<alternative compiler>")
+		message(FATAL_ERROR "Your compiler (${CMAKE_C_COMPILER}) MUST support C11. Try using CC=<alternative compiler>")
 	else (NOT HAVE_C1X_FLAG)
-		message(WARNING "Your compiler appears to support an older version of C++11, the compile may fail! Please update your compiler before reporting any bugs!")
-		set(CFLAGS "${CFLAGS} -std=c++0x")
-	endif (NOT HAVE_C1X_FLAG)
+		message(WARNING "Your compiler appears to support an older version of C11, the compile may fail! Please update your compiler before reporting any bugs!")
+		set(CFLAGS "${CFLAGS} -std=c1x")
+	endif (NOT HAVE_CXX11_FLAG)
 else (NOT HAVE_C11_FLAG)
-	set(CFLAGS "${CFLAGS} -std=c++11")
+	set(CFLAGS "${CFLAGS} -std=c11")
 endif (NOT HAVE_C11_FLAG)
 
 # Add some feature test macro definitions.
@@ -95,7 +113,11 @@ endif (NOT HAVE_C11_FLAG)
 # you can remove this feature test macro for _GNU_SOURCE
 add_definitions(-D_POSIX_SOURCE=1 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE=1)
 
-set(CMAKE_CXX_FLAGS ${CFLAGS})
+if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    add_definitions(-D_DEBUG)
+endif (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+
+set(CMAKE_CXX_FLAGS ${CXXFLAGS})
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     # Add some freebsd-specific macros
@@ -214,8 +236,9 @@ include_directories(${CMAKE_BINARY_DIR})
 find_program(GZIP gzip)
 
 # Finally, tell CMake how to build the project
-add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${FLEX_LEXER_OUTPUTS} ${BISON_PARSER_OUTPUTS})
-set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${CFLAGS}")
+add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${CSOURCE_FILES} ${FLEX_LEXER_OUTPUTS} ${BISON_PARSER_OUTPUTS})
+set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${CXXFLAGS}")
+set_source_files_properties(${CSOURCE_FILES} PROPERTIES LANGUAGE C COMPILE_FLAGS "${CFLAGS}")
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX PREFIX "" SUFFIX "" LINK_FLAGS "${LINKFLAGS}")
 if (LIBDL)
 	target_link_libraries(${PROJECT_NAME} dl)
