@@ -117,11 +117,11 @@ void ProcessSockets(void)
 {
 	if (Socket::sockets.size() >= events.capacity())
 	{
-		dprintf("Reserving more space for events\n");
+		printf("Reserving more space for events\n");
 		events.reserve(Socket::sockets.size() * 2);
 	}
 
-	dprintf("Entering epoll_wait\n");
+	printf("Entering epoll_wait\n");
 
 	int total = epoll_wait(EpollHandle, events.data(), events.capacity(), c->readtimeout * 1000);
 
@@ -139,7 +139,7 @@ void ProcessSockets(void)
 		Socket *s = Socket::FindSocket(ev->data.fd);
 		if (!s)
 		{
-			dfprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->data.fd);
+			fprintf(stderr, "Unknown FD in multiplexer: %d\n", ev->data.fd);
 			// We don't know what socket this is. Someone added something
 			// stupid somewhere so shut this shit down now.
 			// We have to create a temporary Socket object to remove it
@@ -150,7 +150,7 @@ void ProcessSockets(void)
 
 		if (ev->events & (EPOLLHUP | EPOLLERR))
 		{
-			dprintf("Epoll error reading socket %d, destroying.\n", s->GetFD());
+			printf("Epoll error reading socket %d, destroying.\n", s->GetFD());
 			delete s;
 			continue;
 		}
@@ -158,14 +158,14 @@ void ProcessSockets(void)
 		// process socket read events.
 		if (ev->events & EPOLLIN && s->ReceiveData() == -1)
 		{
-			dprintf("Destorying socket due to receive failure!\n");
+			printf("Destorying socket due to receive failure!\n");
 			delete s;
 		}
 
 		// Process socket write events
 		if (ev->events & EPOLLOUT && s->SendData() == -1)
 		{
-			dprintf("Destorying socket due to send failure!\n");
+			printf("Destorying socket due to send failure!\n");
 			delete s;
 		}
 	}

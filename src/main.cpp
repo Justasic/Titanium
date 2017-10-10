@@ -108,18 +108,18 @@ void OpenListener(int sock_fd)
 // 		r.Write("<br /><br /><br /><h2>MySQL Query:</h2><br />");
 
 		// Dump a table out.
-		r.Write("<table id=\"SysmonTable\"> \
-		<thead> \
-		<tr> \
-			<th>Hostname</th> \
-			<th>Processes</th> \
-			<th>Uptime</th> \
-			<th>Architecture</th> \
-			<th>Kernel</th> \
-			<th>Last Updated</th> \
-			<th>Down since</th> \
-		</tr> \
-		</thead>");
+		r.Write(R"(<table id="SysmonTable">
+		<thead>
+		<tr>
+			<th>Hostname</th>
+			<th>Processes</th>
+			<th>Uptime</th>
+			<th>Architecture</th>
+			<th>Kernel</th>
+			<th>Last Updated</th>
+			<th>Down since</th>
+		</tr>
+		</thead>)");
 
 		// Run query for hosts
 		try {
@@ -159,13 +159,13 @@ void OpenListener(int sock_fd)
 				r.Write("<tr class=\"%s clickable\" id=\"row%s\" data-toggle=\"collapse\" data-target=\"#accordion%s\">",
 								classstr, it.second[0], it.second[0]);
 
-				r.Write("<td>%s</td> \
-				<td>%s</td> \
-				<td>%s</td> \
-				<td>%s</td> \
-				<td>%s</td> \
-				<td>%s</td> \
-				<td>%s</td>", it.second[3], it.second[2], uptime, it.second[4],
+				r.Write(R"(<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>)", it.second[3], it.second[2], uptime, it.second[4],
 					it.second[5], it.second[6], classstr == "up" ? "Never" : Duration(timediff));
 
 				r.Write("</tr>");

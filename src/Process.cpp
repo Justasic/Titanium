@@ -9,8 +9,6 @@
 #include <cstring>
 #include <vector>
 
-#include "binn.h"
-
 typedef struct {
 	// Socket information
 	socket_t c;
@@ -20,8 +18,7 @@ typedef struct {
 	bool bursting;
 
 	// The data
-	void *data;
-	size_t len;
+	std::vector<uint8_t> data;
 } whatever_t;
 
 typedef struct
@@ -63,7 +60,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 		printf("WARNING: Invalid packet size: %ld, rejecting packet.\n", len);
 		return;
 	}
-
+#ifdef _DEBUG
 	printf("============= PACKET DATA ==========\n");
 	fwrite(buf, 1, len, stdout);
 	printf("\nHex:\n");
@@ -74,6 +71,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 	}
 	tfm::printf("\nPacket Type: %s", PACKET(*(uint8_t*)buf));
 	printf("\n============= END PACKET DATA ==========\n");
+#endif
 
 	for (auto it = clients.begin(), it_end = clients.end(); it != it_end;)
 	{
@@ -86,10 +84,12 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 			memset(&pak, 0, sizeof(packet_t));
 			// Copy the packet.
 			memcpy(&pak, buf, len);
+
+#ifdef _DEBUG
 			tfm::printf("RAW: packet %d (%.8X), packetno: %d (%.8X)\n", pak.packet, pak.packet, pak.packetno, pak.packetno);
 			tfm::printf("RAW ENDIAN: packet %d (%.8X), packetno: %d (%.8X)\n", pak.packet, pak.packet, htonl(pak.packetno), htonl(pak.packetno));
-
 			tfm::printf("Received packet %d (%s)\n", pak.packet, PACKET(pak.packet));
+#endif
 
 			// So it isnt a burst, but are we bursting?
 			if (!w->bursting)
@@ -97,6 +97,16 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 				tfm::printf("Received packet %d (%s) but we're not bursting?? ignoring packet.\n", pak.packet, PACKET(pak.packet));
 				return;
 			}
+
+			/*
+			 * Description:
+			 * So basically the way this works is that we have 5 types of UDP packets.
+			 * The first packet type is a "DATABURST" packet, signalling that the client wants to initiate a databurst.
+			 * The second packet consists of a timeout value which is uint32_t bytes long, this is the time the client expects to reply.
+			 * The third packet type is the number of packet chunks that will be sent (number of datablocks to expect).
+			 * The forth packet type is the actual data info from the client which is MessagePack data.
+			 * The fifth packet type signals the end of the databurst and to terminate the connection.
+			 */
 
 			switch (pak.packet)
 			{
@@ -109,18 +119,11 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 					return;
 				case INFO:
 				{
-					// Calculate the size of the data. possibility: datalen < sizeof(data);
+					// TODO: Prevent buffer-overrun attack?
 					size_t datalen = len - sizeof(uint8_t) - sizeof(uint32_t);
-					void *newdata = realloc(w->data, w->len + datalen);
-					if (!newdata)
-					{
-						fprintf(stderr, "Failed to allocate %ld bytes of memory: %s\n", w->len + datalen, strerror(errno));
-						return;
-					}
-					w->data = newdata;
-					// Copy the data
-					memcpy(((uint8_t*)w->data) + w->len, pak.data, datalen);
-					w->len += datalen;
+					uint8_t *typeddata = reinterpret_cast<uint8_t*>(pak.data);
+
+					w->data.insert(w->data.end(), typeddata, typeddata + datalen);
 					w->receivedpackets++;
 					return;
 				}
@@ -133,9 +136,9 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 					}
 					else
 					{
+						// Just delete the received packets and continue until next response.
 						printf("Received invalid number of data packets: %ld (expected %ld)\n", w->receivedpackets, w->totalpackets);
 						clients.erase(it);
-						free(w->data);
 						delete w;
 						return;
 					}
@@ -147,7 +150,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 
 			printf("Received data burst! Unserializing the data...\n");
 			// Unserialize the packet data, then process.
-			information_t *info = UnserializeData(w->data, w->len);
+			information_t *info = UnserializeData(w->data);
 
 			// Process the info structure, this submits it to the database among other things.
 			tfm::printf("Updating databases and processing information for %s, next timeout at %d\n", info->Hostname, w->timeout);
@@ -155,7 +158,6 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 
 			// Remove ourselves from the vector.
 			clients.erase(it);
-			free(w->data);
 			delete w;
 
 			printf("Finised!\n");
@@ -164,8 +166,7 @@ void ProcessUDP(Socket *s, socket_t client, void *buf, size_t len)
 		++it;
 	}
 
-
-
+	// We're starting a new client.
 	whatever_t *we = new whatever_t;
 	memset(we, 0, sizeof(whatever_t));
 

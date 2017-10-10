@@ -1,99 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
-// Include the serialization library
-extern "C" {
-  #include "binn.h"
-}
+#include <cstring>
 #include "Unserialize.h"
-
-// An enumoration of all the values so we can make a map
-// out of it then send all the data over a socket.
-enum
-{
-		SYSTEM_TIME = 1,
-		BOOT_TIME,
-		LOADS,			// This is a list of 3 floats
-		SECONDS_IDLE,
-		SECONDS_UPTIME,
-		PROC_CNT,
-		RUNNING_PROC_CNT,
-		ZOMBIES,
-		USERCNT,
-		HOSTNAME,
-		CPUINFO,		 // nested map.
-		MEMORY_INFO,	 // Nested map.
-		HDD_INFO,		// List of nested maps.
-		NETWORK_INFO,	// List of nested maps.
-		KERN_INFO,	   // nested map.
-		LSB_INFO		 // nested map.
-};
-
-// CPU information indexes
-enum
-{
-		CPU_ARCH = 1,
-		CPU_MODEL,
-		CPU_CORES,
-		CPU_PHYS_CORES,
-		CPU_CUR_SPEED,
-		CPU_PERCENT
-};
-
-// Memory Information indexes
-enum
-{
-		MEM_FREE = 1,
-		MEM_USED,
-		MEM_TOTAL,
-		MEM_AVAIL,
-		MEM_SWAP_FREE,
-		MEM_SWAP_TOTAL
-};
-
-// Hard drive information indexes
-enum
-{
-		HDD_NAME = 1,
-		HDD_BYTES_WRITTEN,
-		HDD_BYTES_READ,
-		HDD_SPACE_AVAIL,
-		HDD_SPACE_USED,
-		HDD_PARTITION_SIZE,
-		HDD_MOUNT,
-		HDD_FS_TYPE,
-};
-
-// Network information indexes
-enum
-{
-		NET_IFACE = 1,
-		NET_IPV6ADDR,
-		NET_IPV4ADDR,
-		NET_MAC,
-		NET_SUBNET,
-		NET_TXCNT,
-		NET_RXCNT,
-};
-
-// kernel information indexes
-enum
-{
-		KERN_TYPE = 1,
-		KERN_VERS,
-		KERN_REL,
-		KERN_TAINTED
-};
-
-// LSB information indexes
-enum
-{
-		LSB_VERS = 1,
-		LSB_DISTRO,
-		LSB_REL,
-		LSB_DESC
-};
+#include "json.hpp"
 
 ///////////////////////////////////////////////
 // Function: UnserializeData
@@ -102,9 +12,98 @@ enum
 // Accept a block of data and unserialize that data
 // into an information_t structure so we can use
 // the data internally for graphing and such.
-information_t *UnserializeData(void *ptr, size_t len)
+information_t *UnserializeData(const std::vector<uint8_t> data)
 {
+        using namespace nlohmann;
+        // Allocate a new structure.
 		information_t *info = new information_t;
+        // Get the data from the message pack.
+        json message = json::from_msgpack(data);
+
+        // Debug.
+        #ifdef _DEBUG
+        tfm::printf("Received the following MessagePack data:\n\n=========BEGIN=========\n%s\n==========END==========\n\n", json.dump(4));
+        #endif
+
+        // Unserialize the data.
+        /// Get current system time and time since system boot.
+        info->CurrentTime = message["SYSTEM_TIME"];
+        info->StartTime = message["BOOT_TIME"];
+
+        // Get current loadtimes.
+        info->Loads[0] = message["LOADS"][0];
+        info->Loads[1] = message["LOADS"][1];
+        info->Loads[2] = message["LOADS"][2];
+
+        // More generic data
+        info->SecondsIdle         = message["SECONDS_IDLE"];
+        info->SecondsUptime       = message["SECONDS_UPTIME"];
+        info->ProcessCount        = message["PROC_CNT"];
+        info->RunningProcessCount = message["RPROC_CNT"];
+        info->Zombies             = message["ZOMBIES"];
+        info->UserCount           = message["USRCNT"];
+        info->Hostname            = message["HOSTNAME"];
+
+        // Get the CPU information (model, cores, etc.)
+        info->cpu_info.Architecture  = message["CPU"]["ARCH"];
+        info->cpu_info.Model         = message["CPU"]["MODEL"];
+        info->cpu_info.Cores         = message["CPU"]["CORES"];
+        info->cpu_info.PhysicalCores = message["CPU"]["PCORES"];
+        info->cpu_info.CurrentSpeed  = message["CPU"]["CURSPEED"];
+        info->cpu_info.CPUPercent    = message["CPU"]["PERCENT"];
+
+        // Unserialize the memory information
+        info->memory_info.FreeRam   = message["MEM"]["FREE"];
+        info->memory_info.UsedRam   = message["MEM"]["USED"];
+        info->memory_info.TotalRam  = message["MEM"]["TOTAL"];
+        info->memory_info.AvailRam  = message["MEM"]["AVAIL"];
+        info->memory_info.SwapFree  = message["MEM"]["SWAP_FREE"];
+        info->memory_info.SwapTotal = message["MEM"]["SWAP_TOTAL"];
+
+		// Unserialize the hard drive device list/mount list.
+		for (json::iterator it = message["HDD"].begin(), it_end = message["HDD"].end(); it != it_end; ++it)
+		{
+            json mount = *it;
+			hdd_info_t *hdd = new hdd_info_t;
+			hdd->Name           = mount["NAME"];
+            hdd->BytesWritten   = mount["BYTES_WRITTEN"];
+            hdd->BytesRead      = mount["BYTES_READ"];
+            hdd->SpaceAvailable = mount["SPACE_AVAIL"];
+            hdd->SpaceUsed      = mount["SPACE_USED"];
+            hdd->PartitionSize  = mount["PART_SIZE"];
+            hdd->MountPoint     = mount["MOUNT"];
+            hdd->FileSystemType = mount["FS_TYPE"];
+            info->hdd_start.push_back(hdd);
+		}
+
+		// Unserialize the network interface list.
+		for (json::iterator it = message["NETWORK"].begin(), it_end = message["NETWORK"].end(); it != it_end; ++it)
+		{
+            json interface = *it;
+			network_info_t *net = new network_info_t;
+            net->InterfaceName = interface["IFACE"];
+            net->IPv6Address   = interface["IPV6ADDR"];
+            net->IPv4Address   = interface["IPV4ADDR"];
+            net->MACAddress    = interface["MAC"];
+            net->SubnetMask    = interface["SUBNET"];
+            net->TX            = interface["TX"];
+            net->RX            = interface["RX"];
+            info->net_start.push_back(net);
+		}
+
+		// Unserialize the kernel info.
+		info->kernel_info.Type      = message["KERN_TYPE"];
+		info->kernel_info.Version   = message["KERN_VERS"];
+		info->kernel_info.Release   = message["KERN_REL"];
+		info->kernel_info.IsTainted = message["KERN_TAINTED"];
+
+		// Unserialize LSB Information
+		info->lsb_info.Version     = message["LSB_VERS"];
+		info->lsb_info.Dist_id     = message["LSB_DISTRO"];
+		info->lsb_info.Release     = message["LSB_REL"];
+		info->lsb_info.Description = message["LSB_DESC"];
+
+#if 0
 
 		// Unserialize the generic data first.
 		info->CurrentTime = binn_map_uint64(ptr, SYSTEM_TIME);
@@ -123,7 +122,12 @@ information_t *UnserializeData(void *ptr, size_t len)
 		info->RunningProcessCount = binn_map_uint32(ptr, RUNNING_PROC_CNT);
 		info->Zombies             = binn_map_uint32(ptr, ZOMBIES);
 		info->UserCount           = binn_map_uint32(ptr, USERCNT);
-		info->Hostname            = binn_map_str(ptr, HOSTNAME);
+        char *str = binn_map_str(ptr, HOSTNAME);
+
+
+
+        size_t strlength = strnlen(str, len);
+		info->Hostname            = std::string(str, strlength);
 
 		// Unserialize the CPU information
 		binn *cpuinfo = (binn*)binn_map_map(ptr, CPUINFO);
@@ -188,6 +192,6 @@ information_t *UnserializeData(void *ptr, size_t len)
         info->lsb_info.Dist_id     = binn_map_str(ptr, LSB_DISTRO);
         info->lsb_info.Release     = binn_map_str(ptr, LSB_REL);
         info->lsb_info.Description = binn_map_str(ptr, LSB_DESC);
-
+#endif
         return info;
 }

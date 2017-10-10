@@ -9,7 +9,6 @@ typedef struct hdd_info_s
 	std::string Name; // Device/partition name.
 	size_t BytesWritten;
 	size_t BytesRead;
-
 	size_t SpaceAvailable; // In bytes
 	size_t SpaceUsed; // in bytes
 	size_t PartitionSize; // in bytes
@@ -88,4 +87,4 @@ typedef struct information_s
 	} lsb_info;
 } information_t;
 
-information_t *UnserializeData(void *ptr, size_t len);
+information_t *UnserializeData(const std::vector<uint8_t> data);

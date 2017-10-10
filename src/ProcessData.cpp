@@ -3,6 +3,7 @@
 #include "misc.h"
 #include "MySQL.h"
 #include "Process.h"
+#include "Unserialize.h"
 
 #ifdef _DEBUG
 void DumpSystemInformation(information_t *info)
@@ -85,7 +86,6 @@ void DumpSystemInformation(information_t *info)
 }
 #else
 # define DumpSystemInformation(x)
-# error we're not debug.
 #endif
 
 extern MySQL *ms;

@@ -20,11 +20,14 @@ GetGitRevision()
 SET(VERSION_SIMPLE "${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_LEVEL}")
 SET(VERSION_FULL "${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_LEVEL}-${GIT_REVISION_SHORT}")
 
-
-
 # Find clang (if the system has it)
 find_program(CLANG clang)
 find_program(CLANGXX clang++)
+
+# Set the default build type to "Release" if not already set.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
 
 # prefer clang instead of gcc (or whatever shit compiler they're using) This can be disabled with
 # the NO_CLANG option
@@ -44,31 +47,45 @@ endif (NOT NO_CLANG)
 project(Titanium CXX)
 enable_language(C)
 
-include (CheckCXXCompilerFlag)
-include (CheckCCompilerFlag)
-
-message(STATUS "${PROJECT_NAME} version: ${VERSION_FULL}")
-
-# Make sure the compiler accepts C11
-set(CFLAGS "${CFLAGS} -Werror=implicit-function-declaration -Wall -Wextra -Wno-unused-parameter")
-set(CXXFLAGS "${CFLAGS}")
-
-# Add some feature test macro definitions.
-# _GNU_SOURCE is used because we use strndupa and alloca, remove references to alloca/strndupa and
-# you can remove this feature test macro for _GNU_SOURCE
-add_definitions(-D_POSIX_SOURCE=1 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE=1)
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-    # Add some freebsd-specific macros
-    add_definitions(-D_BSD_SOURCE)
-endif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-
 # Check for platform-specific things we need
 include (CheckTypeSize)
 include (CheckIncludeFile)
 include (CheckLibraryExists)
 include (CheckFunctionExists)
 include (CheckCXXSourceCompiles)
+include (CheckCXXCompilerFlag)
+include (CheckCCompilerFlag)
+
+message(STATUS "Building \"${CMAKE_BUILD_TYPE}\" version of ${PROJECT_NAME}-${VERSION_FULL}")
+
+# Make sure the compiler accepts C11
+#check_cxx_compiler_flag(-std=c++11 HAVE_C11_FLAG)
+list(APPEND CFLAGS -Werror=implicit-function-declaration -Wall -Wextra -Wno-unused-parameter)
+if (${CMAKE_BUILD_TYPE} MATCHES "Release")
+    set(LINKFLAGS "-s")
+endif (${CMAKE_BUILD_TYPE} MATCHES "Release")
+
+if (NOT NO_CLANG)
+	# Because of C++17 being somewhat incomplete for clang/g++ we
+	# have to make clang use libc++ instead of glibc++
+	find_library(LIBCPP libc++ REQUIRED)
+    LIST(APPEND CFLAGS -stdlib=libc++)
+    set(LINKFLAGS "${LINKFLAGS} -stdlib=libc++")
+endif (NOT NO_CLANG)
+
+# Add our compile definitions.
+# XXX: This is a global definition change!
+add_compile_options(${CFLAGS})
+
+# Add some feature test macro definitions.
+# _GNU_SOURCE is used because we use strndupa and alloca, remove references to alloca/strndupa and
+# you can remove this feature test macro for _GNU_SOURCE
+#add_definitions(-D_POSIX_SOURCE=1 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE=1)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    # Add some freebsd-specific macros
+    add_definitions(-D_BSD_SOURCE)
+endif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 
 check_type_size(int8_t HAVE_INT8_T)
 check_type_size(uint8_t HAVE_UINT8_T)
@@ -147,34 +164,8 @@ int main() { const char *abc = \"abc\"; char *str = strndupa(abc, 5); return 0; 
 " HAVE_STRNDUPA)
 
 # Get more files
-# TODO: use GLOB_RECURSE instead of GLOB?
-file(GLOB SOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
-file(GLOB CSOURCE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.c")
-list(SORT CSOURCE_FILES)
+GetSources("${CMAKE_CURRENT_SOURCE_DIR}/src" SOURCE_FILES)
 list(SORT SOURCE_FILES)
-
-# Find our multiplexer, choose the best one possible.
-if (HAVE_SYS_EPOLL_H)
-    list(APPEND SOURCE_FILES src/multiplexers/multiplexer_epoll.cpp)
-else (HAVE_SYS_EPOLL_H)
-    # Okay, so this system doesn't have epoll, let's try kqueue.
-    if (HAVE_KQUEUE)
-        list(APPEND SOURCE_FILES src/multiplexers/multiplexer_kqueue.cpp)
-    else (HAVE_KQUEUE)
-        # Okay, we don't have kqueue, lets try poll.
-        if (HAVE_POLL)
-            list(APPEND SOURCE_FILES src/multiplexers/multiplexer_poll.cpp)
-        else (HAVE_POLL)
-            # alright, we'll give in and try select.
-            if (HAVE_SELECT)
-                list(APPEND SOURCE_FILES src/multiplexers/multiplexer_select.cpp)
-            else (HAVE_SELECT)
-                # wtf? are we on MS-DOS?
-                message(FATAL_ERROR "Cannot find a compatible multiplexer for this platform, please file a bug.")
-            endif (HAVE_SELECT)
-        endif(HAVE_POLL)
-    endif(HAVE_KQUEUE)
-endif (HAVE_SYS_EPOLL_H)
 
 # Download JSON.hpp
 if (NOT EXISTS ${CMAKE_BINARY_DIR}/external/json/json.hpp)
@@ -204,33 +195,19 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 # Add our include directories
-include_directories(${CMAKE_SOURCE_DIR}/include ${MYSQL_INCLUDE_DIR} ${FastCGI_INCLUDE_DIR})
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}/external/json/
+    ${MYSQL_INCLUDE_DIR}
+    ${FastCGI_INCLUDE_DIR}
+    ${CMAKE_BINARY_DIR}
+)
 
 # Configuration file and include the binary directory
 configure_file(${CMAKE_SOURCE_DIR}/cmake/sysconf.h.cmake ${CMAKE_BINARY_DIR}/sysconf.h)
-include_directories(${CMAKE_BINARY_DIR})
-
-# set(OUTPUT_FILE "${CMAKE_BINARY_DIR}/LICENSE.h")
-# find_program(XXD xxd REQUIRED)
-#
-# add_custom_command(
-#     OUTPUT ${OUTPUT_FILE}
-#     COMMAND ${XXD} -i LICENSE ${OUTPUT_FILE}
-#     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/doc/
-#     COMMENT "Generating binary license header")
-#
-# add_custom_target(
-#     license_headers
-#     ALL DEPENDS
-#     ${OUTPUT_FILE})
-
 
 # Finally, tell CMake how to build the project
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${CSOURCE_FILES} ${FLEX_LEXER_OUTPUTS} ${BISON_PARSER_OUTPUTS})
-
-set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${CXXFLAGS}")
-set_source_files_properties(${CSOURCE_FILES} PROPERTIES LANGUAGE C COMPILE_FLAGS "${CFLAGS}")
-
 set_target_properties(${PROJECT_NAME}
 	PROPERTIES
 		LINKER_LANGUAGE CXX
@@ -268,10 +245,10 @@ target_compile_features(${PROJECT_NAME}
 if (LIBDL)
 	target_link_libraries(${PROJECT_NAME} dl)
 endif (LIBDL)
-target_link_libraries(${PROJECT_NAME} ${MYSQL_LIBRARIES} ${FastCGI_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${MYSQL_LIBRARIES} ${FastCGI_LIBRARIES} Threads::Threads)
 # add_dependencies(${PROJECT_NAME} license_headers)
 
 # Do the make install
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(FILES ${CMAKE_SOURCE_DIR}/doc/nbstftp.conf.example DESTINATION etc RENAME nbstftp.conf)
+install(FILES ${CMAKE_SOURCE_DIR}/doc/titanium.conf.example DESTINATION etc RENAME titanium.conf)
 # install(FILES ${MAN_FILE} DESTINATION man)

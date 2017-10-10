@@ -1,11 +1,9 @@
 Titanium
 ========
 
-Titanium, A small linux system information collector based on adkit_. It uses a UDP protocol to receive system
+Titanium, A small linux system information collector. It uses a MessagePack over UDP protocol to receive system
 information and then collects it and presents it as a web page for statistical analysis.
 The information is also stored in a MySQL database so other applications may use it.
-
-.. _adkit: https://github.com/Justasic/adkit
 
 
 Setup

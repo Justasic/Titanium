@@ -174,7 +174,7 @@ int ThreadHandler::GetThreadID()
 WorkerThread::WorkerThread(int ThreadID, ThreadHandler *thr) : wakeThread(false),
 thr(thr), threadID(ThreadID), quitting(false)
 {
-	printf("Thread ID: %i\n", ThreadID);
+	dprintf("Thread ID: %i\n", ThreadID);
 	// NOTICE: We must wait for the class to initialize before we can start our thread
 	// otherwise we get uninitialized values which can cause a race condition
 	// and undefined behavior when the class

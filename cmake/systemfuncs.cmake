@@ -298,6 +298,8 @@ macro(GetSources SRC CPPSOURCES)
 		# If we have a CMakeLists.txt file, include it instead of trying to compile
 		# sources as part of main project.
 		add_subdirectory("${SRC}")
+        # Allow the child CMakeLists.txt to add sources to our list.
+        list(APPEND ${CPPSOURCES} ${CHILD_SCOPE_SOURCES})
 	else(NOT ${SRC} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR} AND EXISTS "${SRC}/CMakeLists.txt")
 		# get a list of all files in the directory.
 		file(GLOB SRC_FLDR "${SRC}/*")
